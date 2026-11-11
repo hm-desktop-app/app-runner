@@ -216,6 +216,33 @@ async function main() {
   assert.equal((disk.match(/\[\[related_links\]\]/g) || []).length,2,'blank link rows were saved');
   assert.match(disk,/PIN:data/);
 
+  /* installing an update disables the dialog controls until it finishes */
+  const updateSource = await fs.mkdtemp(path.join(output,'ui-update-'));
+  await fs.mkdir(path.join(updateSource,'data'),{recursive:true});
+  await fs.writeFile(path.join(updateSource,'data','seed.txt'),'update fixture');
+  await row('Alpha Changed').locator('[data-act=edit]').click();
+  await page.locator('#sheet-layer.open').waitFor();
+  await page.locator('[data-tab=update]').click();
+  await page.locator('#sheet-update').click();
+  await page.locator('#update-source-dialog[open]').waitFor();
+  assert.equal(await page.locator('#update-source').isEnabled(),true,'the source field starts disabled');
+  await page.locator('#update-kind').selectOption('directory');
+  await page.locator('#update-source').fill(updateSource);
+  /* hold the call so the busy state is observable */
+  await page.route('**/*',async route => {if (route.request().method() === 'POST') await new Promise(resolve => setTimeout(resolve,1200));await route.continue();});
+  await page.locator('#update-install').click();
+  await page.waitForFunction(() => document.querySelector('#activity').matches(':popover-open'));
+  assert.equal(await page.locator('#update-install').isDisabled(),true,'the install button stays enabled while installing');
+  assert.equal(await page.locator('#update-source').isDisabled(),true,'the source field stays enabled while installing');
+  assert.equal(await page.locator('#update-source-cancel').isDisabled(),true,'cancel stays enabled while installing');
+  await page.waitForFunction(() => !document.querySelector('#activity').matches(':popover-open'),undefined,{timeout:20000});
+  await page.unroute('**/*');
+  assert.equal(await page.locator('#update-install').isDisabled(),false,'the install button was not re-enabled');
+  await page.locator('#update-keep-backup').click();
+  await page.locator('#update-source-dialog[open]').waitFor({state:'hidden'});
+  /* the fixture's update rules drop the entry, so restore it for the checks below */
+  await fs.writeFile(path.join(alpha,'content','app.exe'),'test-only entry');
+
   /* entry validation flags a missing executable */
   await row('Alpha Changed').locator('[data-act=edit]').click();
   await page.locator('#sheet-layer.open').waitFor();

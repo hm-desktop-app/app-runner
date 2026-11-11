@@ -357,6 +357,8 @@ dialog #category-dialog-error,dialog #group-edit-error,dialog #update-source-err
 .dialog-actions button{height:33px;padding:0 14px;border:1px solid var(--line-strong);background:var(--surface);border-radius:7px;font-size:11.5px}
 .dialog-actions button:hover{background:var(--surface-2)}
 .dialog-actions button.primary{background:var(--accent);border-color:var(--accent);color:var(--on-accent);font-weight:600}
+dialog button:disabled{opacity:.45;cursor:default;pointer-events:none}
+dialog input:disabled,dialog select:disabled{background:var(--surface-3);border-color:var(--line);color:var(--faint)}
 .dialog-actions button.danger-button{color:var(--red);border-color:var(--red-line);background:var(--red-soft);margin-right:auto}
 .dialog-hint{margin-top:10px;font-size:10px;color:var(--faint)}
 .source-path{display:flex;gap:6px}

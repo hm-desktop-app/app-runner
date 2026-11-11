@@ -83,7 +83,25 @@ function setBusy(value: boolean, text = ''): void {
  /* 顶部提示放在顶层：模态对话框的遮罩盖不住它，进度始终可读 */
  if (value && !activity.matches(':popover-open')) activity.showPopover();
  else if (!value && activity.matches(':popover-open')) activity.hidePopover();
+ setDialogBusy(value);
  $<HTMLButtonElement>('#new-app').disabled = value || loading;
+}
+/** 忙碌期间把打开中的对话框控件设为禁用，结束后恢复它们原来的状态。 */
+function setDialogBusy(value: boolean): void {
+ for (const dialog of Array.from(document.querySelectorAll<HTMLDialogElement>(value ? 'dialog[open]' : 'dialog'))) {
+  for (const control of Array.from(dialog.querySelectorAll<HTMLInputElement | HTMLButtonElement | HTMLSelectElement | HTMLTextAreaElement>('input, select, textarea, button'))) {
+   if (value) {
+    if (!control.disabled) {control.dataset.busyDisabled = '1';control.disabled = true;}
+   } else if (control.dataset.busyDisabled) {
+    delete control.dataset.busyDisabled;
+    control.disabled = false;
+   }
+  }
+ }
+}
+/* 忙碌时不允许用 Esc 关闭对话框，进度和结果都要留在可见的位置 */
+for (const dialog of Array.from(document.querySelectorAll<HTMLDialogElement>('dialog'))) {
+ dialog.addEventListener('cancel', event => {if (busy) event.preventDefault();});
 }
 function showToast(message: string): void {
  const toast = $('#toast');
@@ -469,7 +487,6 @@ async function updateGroup(remove: boolean): Promise<void> {
   $('#group-edit-error').textContent = error instanceof Error ? error.message : String(error);
  } finally {
   setBusy(false);
-  $$<HTMLInputElement|HTMLButtonElement>('#group-edit-dialog input, #group-edit-dialog button').forEach(control => control.disabled = false);
  }
 }
 $('#group-edit-form').onsubmit = event => {event.preventDefault();void updateGroup(false);};
