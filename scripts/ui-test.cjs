@@ -193,9 +193,15 @@ async function main() {
   await page.locator('#sheet-layer.open').waitFor();
   await page.locator('[data-tab=links]').click();
   assert.equal(await page.locator('#sheet-body [data-link]').count(),2);
+  assert.equal(await page.locator('#sheet-body [data-open-link]').first().isEnabled(),true,'a configured link cannot be opened');
   await page.locator('#add-link').click();
+  assert.equal(await page.evaluate(() => document.activeElement?.getAttribute('data-key')),'title','adding a link did not focus its name');
+  assert.equal(await page.locator('#sheet-body [data-open-link]').nth(1).isDisabled(),true,'a blank link can be opened');
   await page.locator('#sheet-body [data-link="1"][data-key=title]').fill('文档');
   await page.locator('#sheet-body [data-link="1"][data-key=url]').fill('docs.example.com');
+  await page.locator('#sheet-body [data-link="1"][data-key=url]').blur();
+  assert.equal(await page.locator('#sheet-body [data-link="1"][data-key=url]').inputValue(),'https://docs.example.com','a bare domain was not expanded');
+  await page.locator('#add-link').click(); /* an untouched row must not reach the profile */
   await page.locator('[data-tab=update]').click();
   await page.locator('#add-updater').click();
   await page.locator('[data-action="2"]').selectOption('PIN');
@@ -204,6 +210,8 @@ async function main() {
   await page.locator('#sheet-layer.open').waitFor({state:'hidden'});
   let disk = await text(path.join(alpha,'app.toml'));
   assert.match(disk,/title = '文档'/);
+  assert.match(disk,/url = 'https:\/\/docs\.example\.com'/);
+  assert.equal((disk.match(/\[\[related_links\]\]/g) || []).length,2,'blank link rows were saved');
   assert.match(disk,/PIN:data/);
 
   /* entry validation flags a missing executable */

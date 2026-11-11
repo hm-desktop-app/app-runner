@@ -288,6 +288,33 @@ tr:hover .row-actions,tr.selected .row-actions{opacity:1}
 .row-btn:hover{color:var(--accent);border-color:var(--accent)}
 .row-btn.delete:hover{color:var(--red);border-color:var(--red-line)}
 .row-btn svg{width:13px;height:13px}
+
+/* related links */
+.link-hint{margin:0 0 9px;font-size:10px;line-height:1.6;color:var(--faint)}
+.link-list{display:flex;flex-direction:column;gap:7px;margin-bottom:9px}
+.link-card{display:flex;align-items:center;gap:4px;border:1px solid var(--line);border-radius:8px;background:var(--surface-2);padding:6px 8px 7px;transition:border-color .14s,box-shadow .14s}
+.link-card:hover{border-color:var(--line-strong)}
+.link-card:focus-within{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
+.link-fields{flex:1;min-width:0;display:flex;flex-direction:column}
+.link-actions{display:flex;align-items:center;gap:2px;flex-shrink:0}
+.link-title{height:20px;border:0;background:none;padding:0 2px;font-size:12px;font-weight:600;outline:0}
+.link-title::placeholder{font-weight:500;color:var(--faint)}
+.link-url{width:100%;height:18px;border:0;background:none;padding:0 2px;outline:0;font-family:"Cascadia Mono",Consolas,monospace;font-size:10.5px;color:var(--muted)}
+.link-url::placeholder{color:var(--faint)}
+.link-act{width:24px;height:24px;flex:0 0 24px;border:0;background:none;border-radius:6px;display:grid;place-items:center;color:var(--faint);transition:.12s}
+.link-act svg{width:13px;height:13px}
+.link-act:hover{background:var(--surface-3);color:var(--accent)}
+.link-act.delete:hover{background:var(--red-soft);color:var(--red)}
+.link-act:disabled{opacity:.3;cursor:default}
+.link-act:disabled:hover{background:none;color:var(--faint)}
+.link-add{display:flex;align-items:center;justify-content:center;gap:6px;width:100%;min-height:32px;padding:0 10px;border:1px dashed var(--line-strong);border-radius:8px;background:none;color:var(--muted);font-size:11px;transition:.14s}
+.link-add:hover{border-color:var(--accent);color:var(--accent-ink);background:var(--accent-soft)}
+.link-add svg{width:12px;height:12px;flex-shrink:0}
+.link-add.wide{flex-direction:column;gap:2px;padding:18px 12px;border-radius:9px;background:var(--surface-2)}
+.link-add.wide svg{width:20px;height:20px;color:var(--faint);margin-bottom:3px}
+.link-add.wide b{font-size:11.5px;font-weight:600;color:var(--ink)}
+.link-add.wide span{font-size:10px;color:var(--faint)}
+.link-add.wide:hover b{color:var(--accent-ink)}
 .placeholder-box{border:1px dashed var(--line-strong);border-radius:8px;padding:18px;text-align:center;color:var(--muted);font-size:11px;line-height:1.7;background:var(--surface-2)}
 .dropzone{display:flex;flex-direction:column;align-items:center;gap:6px;padding:24px 14px;border:1.5px dashed var(--line-strong);border-radius:9px;background:var(--surface-2);text-align:center;color:var(--muted);margin-bottom:13px}
 .dropzone svg{width:22px;height:22px;color:var(--faint);margin-bottom:2px}

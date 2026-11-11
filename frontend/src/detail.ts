@@ -1,6 +1,6 @@
 import * as API from '../bindings/app-runner/launcherservice';
 import {profileOf, validation, suggestedAppName, categoryOf, statusOf} from './state';
-import type {App, Profile, NewAppInfo} from './state';
+import type {App, Profile, NewAppInfo, Link} from './state';
 import {$ , escape, icons, tile, statusName} from './ui';
 
 export type Theme = 'light' | 'dark';
@@ -97,12 +97,23 @@ function basicHTML(ctx: SheetContext): string {
   + '<label class="check"><input type="checkbox" id="edit-admin"' + (data.runAsAdmin ? ' checked' : '') + '><span>以管理员身份运行</span></label>'
   + '<div class="sheet-links"><button type="button" class="btn small" id="edit-open-dir">' + icons.folder + '打开应用目录</button><button type="button" class="btn small" id="edit-profile">' + icons.external + '编辑 app.toml</button></div>';
 }
+function linkCard(link: Link, index: number): string {
+ return '<div class="link-card"><div class="link-fields">'
+  + '<input class="link-title" data-link="' + index + '" data-key="title" value="' + escape(link.title) + '" placeholder="链接名称" aria-label="链接名称 ' + (index + 1) + '" autocomplete="off" spellcheck="false">'
+  + '<input class="link-url" data-link="' + index + '" data-key="url" value="' + escape(link.url) + '" placeholder="https://" aria-label="链接地址 ' + (index + 1) + '" autocomplete="off" spellcheck="false">'
+  + '</div><div class="link-actions">'
+  + '<button type="button" class="link-act" data-open-link="' + index + '" title="打开链接" aria-label="打开链接 ' + (index + 1) + '"' + (link.url.trim() ? '' : ' disabled') + '>' + icons.external + '</button>'
+  + '<button type="button" class="link-act delete" data-remove-link="' + index + '" title="删除链接" aria-label="删除链接 ' + (index + 1) + '">' + icons.close + '</button>'
+  + '</div></div>';
+}
 function linksHTML(): string {
  const links = draft!.relatedLinks;
- return '<div class="sheet-heading"><h3>相关链接</h3><button type="button" class="btn small" id="add-link">' + icons.plus + '添加链接</button></div>'
-  + (links.length
-   ? '<div class="rows">' + links.map((link, index) => '<div class="row-item" data-row="' + index + '"><input aria-label="链接标题 ' + (index + 1) + '" data-link="' + index + '" data-key="title" value="' + escape(link.title) + '" placeholder="标题"><input aria-label="链接地址 ' + (index + 1) + '" data-link="' + index + '" data-key="url" value="' + escape(link.url) + '" placeholder="https://"><button type="button" class="row-btn" data-open-link="' + index + '" title="打开链接" aria-label="打开链接 ' + (index + 1) + '">' + icons.external + '</button><button type="button" class="row-btn delete" data-remove-link="' + index + '" title="删除链接" aria-label="删除链接 ' + (index + 1) + '">' + icons.close + '</button></div>').join('') + '</div>'
-   : '<div class="placeholder-box">添加官网、下载页面或使用文档，随时可以打开。</div>');
+ if (!links.length) {
+  return '<button type="button" class="link-add wide" id="add-link">' + icons.plus + '<b>添加相关链接</b><span>官网、下载页或使用文档等地址</span></button>';
+ }
+ return '<p class="link-hint">官网、下载页或使用文档等外部地址。</p>'
+  + '<div class="link-list">' + links.map(linkCard).join('') + '</div>'
+  + '<button type="button" class="link-add" id="add-link">' + icons.plus + '添加链接</button>';
 }
 function updateHTML(ctx: SheetContext): string {
  const updaters = draft!.updater;
@@ -136,15 +147,34 @@ function wireBasic(ctx: SheetContext): void {
  $('#edit-profile').onclick = () => void API.EditProfile(editingId).catch(error => ctx.toast(String(error instanceof Error ? error.message : error)));
 }
 function wireLinks(ctx: SheetContext): void {
- $('#add-link').onclick = () => {draft!.relatedLinks.push({title:'新链接', url:'https://'});renderEdit(ctx);};
+ $('#add-link').onclick = () => {
+  draft!.relatedLinks.push({title:'', url:''});
+  renderEdit(ctx);
+  document.querySelector<HTMLInputElement>('#sheet-body [data-link="' + (draft!.relatedLinks.length - 1) + '"][data-key="title"]')?.focus();
+ };
  for (const input of Array.from(document.querySelectorAll<HTMLInputElement>('#sheet-body [data-link]'))) {
   input.oninput = () => {const link = draft!.relatedLinks[Number(input.dataset.link)];link[input.dataset.key as 'title' | 'url'] = input.value;updateEditStatus();};
+  /* 地址只写域名时补齐协议，和 OpenLink 的容错保持一致 */
+  if (input.dataset.key === 'url') input.onchange = () => {
+   const value = input.value.trim(), normalized = value && !value.includes('://') ? 'https://' + value : value;
+   if (normalized !== input.value) input.value = normalized;
+   draft!.relatedLinks[Number(input.dataset.link)].url = normalized;
+   const open = document.querySelector<HTMLButtonElement>('#sheet-body [data-open-link="' + input.dataset.link + '"]');
+   if (open) open.disabled = !normalized;
+   updateEditStatus();
+  };
  }
  for (const button of Array.from(document.querySelectorAll<HTMLButtonElement>('#sheet-body [data-open-link]'))) {
   button.onclick = () => {const link = draft!.relatedLinks[Number(button.dataset.openLink)];void API.OpenLink(link.url).catch(error => ctx.toast(String(error instanceof Error ? error.message : error)));};
  }
  for (const button of Array.from(document.querySelectorAll<HTMLButtonElement>('#sheet-body [data-remove-link]'))) {
   button.onclick = () => {draft!.relatedLinks.splice(Number(button.dataset.removeLink), 1);renderEdit(ctx);};
+ }
+ for (const card of Array.from(document.querySelectorAll<HTMLElement>('#sheet-body .link-card'))) {
+  card.onclick = event => {
+   if ((event.target as HTMLElement).closest('input,button')) return;
+   card.querySelector<HTMLInputElement>('.link-title')?.focus();
+  };
  }
 }
 function wireUpdate(ctx: SheetContext): void {
@@ -193,6 +223,8 @@ async function checkEntry(ctx: SheetContext): Promise<void> {
 }
 async function save(ctx: SheetContext): Promise<void> {
  if (!draft || !dirty() || validation(draft)) return;
+ /* 没填完的链接行不落盘，首尾空格顺手清掉 */
+ draft.relatedLinks = draft.relatedLinks.map(link => ({title: link.title.trim(), url: link.url.trim()})).filter(link => link.title || link.url);
  ctx.busy(true, '正在保存配置…');
  let failure = '';
  try {
