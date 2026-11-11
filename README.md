@@ -76,6 +76,21 @@ url = "https://example.com"
 - GUI 应用通过 Windows Shell 启动；CLI 应用通过 `pwsh -NoExit` 启动，无 `pwsh` 时退回 Windows PowerShell。入口目录加入 PATH，并使用 UTF-16 编码命令正确处理空格、中文和引号。
 - 管理员选项只提升被启动的应用；Windows 要求提升时自动重试。
 
+## 配置与持久化
+
+没有独立的设置文件，全部状态落在四处：
+
+| 位置 | 内容 |
+| --- | --- |
+| `<应用库>\<应用>\app.toml` | 分类、备注、入口、管理员、链接、更新操作与 UUID |
+| `<应用库>\state.json` | 最近使用的 UUID、标题和最后启动时间 |
+| `%APPDATA%\app-runner.exe\EBWebView\` | 界面偏好的本地存储键：`app-runner-theme`、`app-runner-autohide`、`app-runner-categories:<应用库路径>`（空分类） |
+| `%LOCALAPPDATA%\app-runner\instance.lock` | 单实例锁，进程退出后由系统释放 |
+
+窗口尺寸（920×640，最小 740×470）、无边框、热键 `Ctrl+Alt+Space` 和关闭隐藏到托盘均为固定行为，不提供配置项。删除 `%APPDATA%\app-runner.exe` 只会重置主题、运行后隐藏和空分类，不影响应用库。
+
+应用库中的临时文件：`.app-runner-new-*` 是新建暂存，退出时清理；`.app-runner-*` 与 `.content-backup-*` 是原子写入和更新备份的中间目录，正常结束后删除；`content.bak` 是保留的上一版本备份，可在界面删除。
+
 ## 操作
 
 | 操作 | 行为 |
