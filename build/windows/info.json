@@ -1,10 +1,10 @@
 {
 	"fixed": {
-		"file_version": "0.2.0"
+		"file_version": "0.2.1"
 	},
 	"info": {
 		"0000": {
-			"ProductVersion": "0.2.0",
+			"ProductVersion": "0.2.1",
 			"CompanyName": "App Runner",
 			"FileDescription": "本地应用管理与启动器",
 			"LegalCopyright": "App Runner",
