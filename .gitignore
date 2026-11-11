@@ -1,0 +1,11 @@
+bin
+selfcheck/
+.task/
+*.syso
+
+# Frontend build output is embedded by the Go build and regenerated every build
+frontend/dist
+!frontend/dist/
+frontend/dist/*
+!frontend/dist/.gitkeep
+frontend/node_modules

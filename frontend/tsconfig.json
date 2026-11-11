@@ -1,0 +1,30 @@
+{
+  "compilerOptions": {
+    "allowJs": true,
+
+    "noEmit": true,
+    "target": "ES2022",
+    "skipLibCheck": true,
+
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "verbatimModuleSyntax": true,
+
+    "lib": [
+      "DOM",
+      "DOM.Iterable",
+      "ESNext",
+    ],
+
+    "strict": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": false,
+    "noImplicitAny": false,
+    "noImplicitReturns": true,
+    "noFallthroughCasesInSwitch": true,
+  },
+  "include": ["src", "bindings"],
+  "exclude": ["src/**/*.test.ts"]
+}

@@ -1,0 +1,15 @@
+{
+	"fixed": {
+		"file_version": "1.0.0"
+	},
+	"info": {
+		"0000": {
+			"ProductVersion": "1.0.0",
+			"CompanyName": "App Runner",
+			"FileDescription": "本地应用管理与启动器",
+			"LegalCopyright": "App Runner",
+			"ProductName": "App Runner",
+			"Comments": "Go + Wails v3"
+		}
+	}
+}

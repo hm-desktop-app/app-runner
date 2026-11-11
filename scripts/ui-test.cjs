@@ -1,0 +1,339 @@
+// Tests the real Go service through Wails' server transport using an isolated library.
+// Requires Playwright (npm install --no-save playwright) and Chromium/Edge.
+const {chromium} = require('playwright');
+const fs = require('node:fs/promises');
+const path = require('node:path');
+const {spawn} = require('node:child_process');
+const assert = require('node:assert/strict');
+const root = path.resolve(__dirname,'..');
+const output = path.join(root,'selfcheck');
+const port = Number(process.env.UI_TEST_PORT || 9391);
+
+async function fixture(library,name,title,{updater=false,category='',description='测试备注'}={}) {
+ const dir = path.join(library,name);
+ await fs.mkdir(path.join(dir,'content'),{recursive:true});
+ await fs.writeFile(path.join(dir,'content','app.exe'),'test-only entry');
+ const lines = ['title = "' + title + '"','type = "GUI"','entry = "app.exe"','description = "' + description + '"'];
+ if (category) lines.push('category = "' + category + '"');
+ lines.push('updater = ' + (updater ? '["PIN:settings", "RMC"]' : '[]'));
+ lines.push('[[related_links]]','title = "官网"','url = "https://example.com"');
+ await fs.writeFile(path.join(dir,'app.toml'),lines.join('\n') + '\n');
+ return dir;
+}
+const text = file => fs.readFile(file,'utf8');
+
+async function main() {
+ await fs.mkdir(output,{recursive:true});
+ const library = await fs.mkdtemp(path.join(output,'ui-library-'));
+ const alpha = await fixture(library,'alpha','Alpha Editor',{updater:true,category:'开发工具'});
+ await fs.copyFile(path.join(root,'build','windows','icon.ico'),path.join(alpha,'app.ico'));
+ const beta = await fixture(library,'beta','Beta Terminal',{category:'工具'});
+ await fs.writeFile(path.join(beta,'app.ico'),'invalid icon bytes for fallback test');
+ for (let index = 1; index <= 20; index++) await fixture(library,'list-' + index,'Z List ' + String(index).padStart(2,'0'),{category:'其他'});
+ const binary = path.join(output,'test-bin','app-runner-ui-test.exe');
+ const cache = path.join(library,'.test-cache');
+ const server = spawn(binary,['--app-dir',library],{cwd:root,windowsHide:true,env:{...process.env,LOCALAPPDATA:cache,XDG_CACHE_HOME:cache,WAILS_SERVER_HOST:'127.0.0.1',WAILS_SERVER_PORT:String(port)}});
+ let serverOutput = '';
+ server.stdout.on('data',chunk => serverOutput += chunk);
+ server.stderr.on('data',chunk => serverOutput += chunk);
+ let browser;
+ try {
+  for (let i = 0; i < 120; i++) {
+   try {const response = await fetch('http://127.0.0.1:' + port);if (response.ok) break;} catch {}
+   if (server.exitCode !== null) throw new Error(serverOutput);
+   await new Promise(resolve => setTimeout(resolve, 100));
+  }
+  browser = await chromium.launch({headless:true,...(process.platform === 'win32' ? {channel:'msedge'} : {})});
+  const page = await browser.newPage({viewport:{width:920,height:640}});
+  const errors = [];
+  page.on('pageerror',error => errors.push(error.message));
+  page.on('console',message => {if (message.type() === 'error') errors.push(message.text());});
+  const missing = [];
+  page.on('response',response => {if (response.status() === 404) missing.push(response.url());});
+  await page.goto('http://127.0.0.1:' + port);
+
+  const row = title => page.locator('#lib-table tr[data-id]').filter({hasText:title});
+  const filterItem = key => page.locator('#lib-filters [data-filter="' + key + '"]');
+  const inCommand = async () => await page.evaluate(() => document.querySelector('#cmd-view').classList.contains('is-active'));
+  const runCommand = async name => {
+   if (!await inCommand()) await page.locator('#lib-back').click();
+   await page.locator('#cmd-view.is-active').waitFor();
+   await page.locator('#cmd-search').fill(name);
+   await page.locator('.result').filter({hasText:name}).first().dblclick();
+  };
+  const openLibrary = async () => {
+   await runCommand('打开应用库');
+   await page.locator('#lib-view.is-active').waitFor();
+   await page.locator('#lib-table tr[data-id]').first().waitFor();
+  };
+  const openCommand = async () => {
+   await page.locator('#lib-back').click();
+   await page.locator('#cmd-view.is-active').waitFor();
+  };
+  const openSettings = async () => {
+   await runCommand('设置');
+   await page.locator('#sheet-layer.open').waitFor();
+   await page.waitForFunction(() => document.querySelector('#hotkey-pill'));
+  };
+
+  /* command view boots first and owns the keyboard */
+  await page.locator('#cmd-results .result').first().waitFor();
+  await page.waitForFunction(() => document.activeElement?.id === 'cmd-search',undefined,{timeout:5000}).catch(async () => {throw new Error('startup did not focus the command search: ' + await page.evaluate(() => document.activeElement?.id + ' ' + document.activeElement?.tagName));});
+  assert.equal(await page.locator('#cmd-view').evaluate(view => view.classList.contains('is-active')),true);
+  const fills = await page.evaluate(() => {const body = document.querySelector('.window-body').getBoundingClientRect(), view = document.querySelector('#cmd-view').getBoundingClientRect(); return {body:Math.round(body.height),view:Math.round(view.height),top:Math.round(view.top - body.top)};});
+  assert.deepEqual(fills,{body:fills.body,view:fills.body,top:0},'the command view does not fill the window body');
+  const dragRegions = await page.evaluate(() => ({bar:getComputedStyle(document.querySelector('.cmd-search')).getPropertyValue('--wails-draggable').trim(),input:getComputedStyle(document.querySelector('#cmd-search')).getPropertyValue('--wails-draggable').trim()}));
+  assert.equal(dragRegions.bar,'drag','the search row is not a native drag region');
+  assert.equal(dragRegions.input,'no-drag','the search input can drag the window');
+  assert.equal(await page.locator('.cmd-group').first().textContent(),'全部应用','empty history should fall back to all apps');
+  assert.equal(await page.locator('#cmd-close').count(),1,'the command view has no close button');
+  assert.equal(await page.evaluate(() => document.fonts.check('13px Harmony')),true,'the HarmonyOS font did not load');
+  await page.evaluate(() => {document.querySelector('#lib-sort').focus();window.dispatchEvent(new Event('focus'));});
+  assert.equal(await page.evaluate(() => document.activeElement?.id),'cmd-search','window activation did not focus the command search');
+
+  /* searching, keyboard selection and command-only mode */
+  await page.locator('#cmd-search').fill('alpha');
+  await page.locator('.result').filter({hasText:'Alpha Editor'}).waitFor();
+  assert.equal(await page.locator('.result').filter({hasText:'Beta Terminal'}).count(),0);
+  assert.equal(await page.locator('#cmd-peek h2').textContent(),'Alpha Editor');
+  assert.equal(await page.locator('#cmd-peek .peek-row').first().textContent().then(value => value.includes('app.exe')),true);
+  /* opening the sheet must not scroll or shift the panel underneath (focus must not move layout) */
+  await page.locator('#cmd-peek [data-edit]').click();
+  await page.locator('#sheet-layer.open').waitFor();
+  await page.waitForTimeout(120);
+  assert.equal(await page.evaluate(() => document.querySelector('.window-body').scrollLeft),0,'opening the sheet scrolled the window body sideways');
+  assert.equal(await page.evaluate(() => Math.round(document.querySelector('.cmd-body').getBoundingClientRect().x)),0,'opening the sheet shifted the command panel');
+  await page.keyboard.press('Escape');
+  await page.locator('#sheet-layer.open').waitFor({state:'hidden'});
+  await page.locator('#cmd-search').fill('list');
+  await page.locator('.result').filter({hasText:'Z List 01'}).waitFor();
+  const selectedBefore = await page.locator('#cmd-results .result.selected').getAttribute('data-key');
+  await page.locator('#cmd-search').press('ArrowDown');
+  const selectedAfter = await page.locator('#cmd-results .result.selected').getAttribute('data-key');
+  assert.notEqual(selectedBefore,selectedAfter,'arrow keys did not move the command selection');
+  assert.equal(await page.locator('#cmd-results .result.selected').count(),1);
+  await page.locator('#cmd-search').fill('>');
+  assert.deepEqual(await page.locator('.cmd-group').allTextContents(),['命令'],'> prefix still listed applications');
+  assert.equal(await page.locator('.result .tile').count(),0,'> prefix still rendered app tiles');
+  await page.locator('#cmd-search').press('Escape');
+  assert.equal(await page.locator('#cmd-search').inputValue(),'','Escape did not clear the query');
+  assert.equal(await page.locator('.result .tile').count() > 0,true);
+
+  /* the hidden library is neither rendered nor fetched at startup */
+  const startupTable = await page.evaluate(() => ({rows:document.querySelectorAll('#lib-table tr[data-id]').length,icons:performance.getEntriesByType('resource').filter(entry => entry.name.includes('/app-icons/')).length}));
+  assert.equal(startupTable.rows,0,'the hidden library was rendered at startup');
+  assert.ok(startupTable.icons <= 8,'startup fetched icons for the hidden library: ' + startupTable.icons);
+
+  /* library table, filters and selection */
+  await openLibrary();
+  assert.equal(await page.locator('#lib-close').count(),1,'the library has no close button');
+  assert.equal(await page.locator('#lib-table tr[data-id]').count(),22);
+  assert.equal(await page.locator('.filter-item[data-filter="all"] .count').textContent(),'22');
+  assert.equal(await page.locator('.filter-item[data-filter="updatable"] .count').textContent(),'1');
+  await page.locator('.filter-item[data-filter="updatable"]').click();
+  assert.equal(await page.locator('#lib-table tr[data-id]').count(),1);
+  assert.equal(await page.locator('#lib-table tr[data-id]').first().textContent().then(value => value.includes('Alpha Editor')),true);
+  await filterItem('all').click();
+  assert.equal(await page.locator('#lib-table tr[data-id]').count(),22);
+  await page.evaluate(() => {globalThis.__rowNodes = Array.from(document.querySelectorAll('#lib-table tr[data-id]'));});
+  await filterItem('updatable').click();
+  await filterItem('all').click();
+  assert.equal(await page.evaluate(() => globalThis.__rowNodes.every(node => document.querySelector('#lib-table').contains(node))),true,'filtering rebuilt unchanged rows');
+
+  const scrollPane = page.locator('.table-scroll');
+  const gutter = await scrollPane.evaluate(element => element.offsetWidth - element.clientWidth);
+  assert.ok(gutter > 0,'table is not scrollable in this fixture');
+  const debounceRows = await page.evaluate(() => {
+   const input = document.querySelector('#lib-search');
+   input.value = 'list-1';
+   input.dispatchEvent(new Event('input'));
+   return document.querySelectorAll('#lib-table tr[data-id]').length;
+  });
+  assert.equal(debounceRows,22,'library search filtered without the 150 ms debounce');
+  await page.waitForFunction(() => document.querySelectorAll('#lib-table tr[data-id]').length < 22);
+  assert.equal(await scrollPane.evaluate(element => element.offsetWidth - element.clientWidth),gutter,'scrollbar appearance changed the table width');
+  await page.locator('#lib-search').fill('');
+  await page.waitForFunction(() => document.querySelectorAll('#lib-table tr[data-id]').length === 22);
+
+  const alphaRow = row('Alpha Editor');
+  await alphaRow.click();
+  await page.waitForFunction(() => document.querySelector('#lib-selection').classList.contains('has'));
+  assert.equal(await page.locator('.sel-name').textContent(),'Alpha Editor');
+  await page.locator('#lib-sort').selectOption('name');
+  await page.waitForFunction(() => document.querySelectorAll('#lib-table tr[data-id]')[0]?.textContent.includes('Alpha Editor'));
+  await page.evaluate(() => {globalThis.__rowBefore = document.querySelectorAll('#lib-table tr[data-id]')[0];});
+  await page.locator('#lib-table tr[data-id]').nth(3).click();
+  assert.equal(await page.evaluate(() => document.querySelectorAll('#lib-table tr[data-id]')[0] === globalThis.__rowBefore),true,'selection rebuilt table rows');
+  assert.equal(await page.locator('.sel-name').textContent(),'Z List 02');
+  await page.locator('#lib-sort').selectOption('recent');
+
+  /* tiles decode real icons and fall back to monograms */
+  await alphaRow.click();
+  await page.locator('#lib-table .tile.loaded').first().waitFor();
+  assert.equal(await alphaRow.locator('.tile-icon').evaluate(image => image.naturalWidth > 0),true,'ICO did not decode');
+  await row('Beta Terminal').click();
+  await page.waitForFunction(() => document.querySelectorAll('#lib-table .tile.loaded').length === 1,'broken icon was not hidden');
+
+  /* edit sheet saves to disk and keeps the table in sync */
+  await alphaRow.click();
+  await row('Alpha Editor').locator('[data-act=edit]').click();
+  await page.locator('#sheet-layer.open').waitFor();
+  assert.equal(await page.locator('#sheet-title').textContent(),'编辑应用');
+  await page.locator('#edit-title').fill('Alpha Changed');
+  assert.equal(await page.locator('#sheet-state').textContent(),'有未保存的更改');
+  assert.equal(await page.locator('#sheet-save').isEnabled(),true);
+  await page.locator('#sheet-save').click();
+  await page.locator('#sheet-layer.open').waitFor({state:'hidden'});
+  assert.match(await text(path.join(alpha,'app.toml')),/title = 'Alpha Changed'/);
+  assert.equal(await row('Alpha Changed').count(),1);
+  assert.equal(await page.locator('.toast').textContent().then(value => value.includes('已保存 Alpha Changed')),true);
+
+  /* links and updater tabs edit structured profile data */
+  await row('Alpha Changed').locator('[data-act=edit]').click();
+  await page.locator('#sheet-layer.open').waitFor();
+  await page.locator('[data-tab=links]').click();
+  assert.equal(await page.locator('#sheet-body [data-link]').count(),2);
+  await page.locator('#add-link').click();
+  await page.locator('#sheet-body [data-link="1"][data-key=title]').fill('文档');
+  await page.locator('#sheet-body [data-link="1"][data-key=url]').fill('docs.example.com');
+  await page.locator('[data-tab=update]').click();
+  await page.locator('#add-updater').click();
+  await page.locator('[data-action="2"]').selectOption('PIN');
+  await page.locator('[data-param="2"]').fill('data');
+  await page.locator('#sheet-save').click();
+  await page.locator('#sheet-layer.open').waitFor({state:'hidden'});
+  let disk = await text(path.join(alpha,'app.toml'));
+  assert.match(disk,/title = '文档'/);
+  assert.match(disk,/PIN:data/);
+
+  /* entry validation flags a missing executable */
+  await row('Alpha Changed').locator('[data-act=edit]').click();
+  await page.locator('#sheet-layer.open').waitFor();
+  await page.locator('#edit-entry').fill('missing.exe');
+  await page.locator('#edit-entry.invalid').waitFor();
+  await page.locator('#edit-entry').fill('app.exe');
+  await page.waitForFunction(() => !document.querySelector('#edit-entry').classList.contains('invalid'));
+  await page.locator('#sheet-close').click();
+  await page.locator('#sheet-layer.open').waitFor({state:'hidden'});
+
+  /* creating an application walks through both steps */
+  const source = await fs.mkdtemp(path.join(output,'ui-source-'));
+  await fs.mkdir(path.join(source,'bin'),{recursive:true});
+  await fs.writeFile(path.join(source,'bin','app.exe'),'created directory application');
+  await page.locator('#new-app').click();
+  await page.locator('#sheet-layer.open').waitFor();
+  await page.locator('#create-kind').selectOption('directory');
+  await page.locator('#create-source').fill(source);
+  await page.locator('#create-name').fill('gamma');
+  await page.locator('#create-next').click();
+  await page.locator('#create-title').waitFor();
+  await page.locator('#create-title').fill('Gamma Browser');
+  await page.locator('#create-category').fill('工具');
+  await page.locator('#create-submit:not([disabled])').waitFor();
+  await page.locator('#create-submit').click();
+  await page.locator('#sheet-layer.open').waitFor({state:'hidden'});
+  await page.waitForFunction(() => document.querySelectorAll('#lib-table tr[data-id]').length === 23);
+  assert.match(await text(path.join(library,'gamma','app.toml')),/title = 'Gamma Browser'/);
+  assert.equal(await page.locator('#lib-view').evaluate(view => view.classList.contains('is-active')),true,'creating did not switch to the library');
+  assert.equal(await page.locator('#lib-search').inputValue(),'');
+
+  /* category lifecycle: create, drop a row in, rename, delete */
+  await page.locator('#new-category').click();
+  await page.locator('#category-dialog[open]').waitFor();
+  await page.locator('#category-name').fill('图形工具');
+  await page.locator('#category-create').click();
+  await page.waitForFunction(() => !document.querySelector('#category-dialog').open);
+  await filterItem('category:图形工具').waitFor();
+  await page.locator('#lib-search').fill('');
+  await page.waitForFunction(() => document.querySelectorAll('#lib-table tr[data-id]').length === 23);
+  await row('Alpha Changed').dragTo(filterItem('category:图形工具'));
+   for (let i = 0; i < 50; i++) {if (/category = '图形工具'/.test(await text(path.join(alpha,'app.toml')))) break;await new Promise(resolve => setTimeout(resolve, 100));}
+  assert.match(await text(path.join(alpha,'app.toml')),/category = '图形工具'/);
+  await filterItem('category:图形工具').click();
+  await page.waitForFunction(() => document.querySelectorAll('#lib-table tr[data-id]').length === 1);
+  assert.equal(await page.locator('#lib-table tr[data-id]').first().textContent().then(value => value.includes('Alpha Changed')),true);
+
+  await filterItem('category:图形工具').click({button:'right'});
+  await page.locator('#group-edit-dialog[open]').waitFor();
+  await page.locator('#group-edit-name').fill('工具');
+  await page.locator('#group-rename').click();
+  assert.match(await page.locator('#group-edit-error').textContent(),/已存在/);
+  await page.locator('#group-edit-name').fill('设计工具');
+  await page.locator('#group-rename').click();
+  await page.waitForFunction(() => !document.querySelector('#group-edit-dialog').open);
+  await filterItem('category:设计工具').waitFor();
+  assert.match(await text(path.join(alpha,'app.toml')),/category = '设计工具'/);
+  assert.equal(await filterItem('category:图形工具').count(),0);
+
+  await filterItem('category:设计工具').click({button:'right'});
+  await page.locator('#group-edit-dialog[open]').waitFor();
+  await page.locator('#group-delete').click();
+  await page.waitForFunction(() => !document.querySelector('#group-edit-dialog').open);
+  assert.match(await text(path.join(alpha,'app.toml')),/category = ''/);
+  assert.equal(await filterItem('category:设计工具').count(),0);
+
+  /* refresh keeps the current selection and the table */
+  await filterItem('all').click();
+  await row('Alpha Changed').click();
+  await page.keyboard.press('F5');
+  await page.waitForFunction(() => document.querySelector('#activity').hidden && document.querySelectorAll('#lib-table tr[data-id]').length === 23);
+  await page.waitForFunction(() => document.querySelectorAll('#lib-table tr[data-id]').length === 23);
+  assert.equal(await page.locator('.sel-name').textContent(),'Alpha Changed','refresh dropped the selection');
+
+  /* settings sheet reflects service state and owns the theme toggle */
+  await openSettings();
+  assert.equal(await page.locator('#hotkey-pill').textContent(),'Ctrl Alt Space');
+  assert.equal(await page.locator('#toggle-autohide').getAttribute('aria-checked'),'false');
+  await page.locator('#toggle-autohide').click();
+  assert.equal(await page.locator('#toggle-autohide').getAttribute('aria-checked'),'true');
+  assert.equal(await page.locator('#toggle-theme').getAttribute('aria-checked'),'false');
+  await page.locator('#toggle-theme').click();
+  assert.equal(await page.evaluate(() => document.documentElement.dataset.theme),'dark');
+  await page.locator('#settings-done').click();
+  await page.locator('#sheet-layer.open').waitFor({state:'hidden'});
+  await page.reload();
+  await page.locator('#cmd-results .result').first().waitFor();
+  assert.equal(await page.evaluate(() => document.documentElement.dataset.theme),'dark','theme did not persist');
+  await page.evaluate(() => localStorage.setItem('app-runner-autohide','0'));
+  await openSettings();
+  await page.locator('#toggle-theme').click();
+  assert.equal(await page.evaluate(() => document.documentElement.dataset.theme),'light');
+  await page.locator('#settings-done').click();
+  await page.locator('#sheet-layer.open').waitFor({state:'hidden'});
+
+  /* keyboard entry points and the library round trip */
+  await openLibrary();
+  await page.locator('body').click({position:{x:600,y:400}});
+  await page.keyboard.press('Control+k');
+  assert.equal(await page.evaluate(() => document.activeElement?.id),'lib-search','Ctrl K did not focus the search');
+  await page.locator('#lib-search').fill('alpha');
+  await page.keyboard.press('Escape');
+  assert.equal(await page.locator('#lib-search').inputValue(),'','Escape did not clear the library query');
+  await page.keyboard.press('Escape');
+  await page.locator('#cmd-view.is-active').waitFor();
+  await page.waitForFunction(() => document.activeElement?.id === 'cmd-search',undefined,{timeout:3000});
+  await openLibrary();
+  await page.locator('#lib-table tr[data-id]').first().click();
+  await page.keyboard.press('ArrowDown');
+  const selectedRow = await page.evaluate(() => document.querySelector('#lib-table tr.selected')?.dataset.id);
+  assert.ok(selectedRow,'arrow keys did not move the library selection');
+  await page.locator('#lib-search').focus();
+  await page.locator('#lib-table tr[data-id]').nth(2).click();
+  await page.keyboard.press('e');
+  await page.locator('#sheet-layer.open').waitFor();
+  await page.keyboard.press('Escape');
+  await page.locator('#sheet-layer.open').waitFor({state:'hidden'});
+  await page.locator('#lib-back').click();
+  await page.locator('#cmd-view.is-active').waitFor();
+
+  const unexpected = errors.filter(message => !/app-icons|Failed to load resource/.test(message));
+  assert.deepEqual(unexpected,[],'unexpected console errors: ' + JSON.stringify(unexpected));
+  assert.ok(missing.length <= 2,'broken icons were requested ' + missing.length + ' times instead of once');
+  await page.screenshot({path:path.join(output,'ui-library.png')});
+  console.log('OK: all UI checks passed');
+ } finally {
+  await browser?.close();
+  server.kill();
+ }
+}
+main().catch(async error => {console.error(error);process.exit(1);});

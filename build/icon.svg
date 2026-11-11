@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256" role="img" aria-label="App Runner">
+ <defs>
+  <linearGradient id="tile" x1="0" y1="0" x2="1" y2="1">
+   <stop offset="0" stop-color="#4a83b4"/>
+   <stop offset="1" stop-color="#1c3f5e"/>
+  </linearGradient>
+  <linearGradient id="cursor" x1="0" y1="0" x2="1" y2="1">
+   <stop offset="0" stop-color="#a9d0ec"/>
+   <stop offset="1" stop-color="#7fb0d8"/>
+  </linearGradient>
+ </defs>
+ <rect x="10" y="10" width="236" height="236" rx="56" fill="url(#tile)"/>
+ <path d="M96 84 152 128 96 172" fill="none" stroke="#fbf6e9" stroke-width="27" stroke-linecap="round" stroke-linejoin="round"/>
+ <rect x="168" y="158" width="44" height="27" rx="13.5" fill="url(#cursor)"/>
+</svg>
