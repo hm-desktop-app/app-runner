@@ -107,9 +107,9 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ github.ref_name }}
         run: |
-          # GoReleaser naming: <app>_<version>_<platform>_<arch>.<ext>, for example
-          # app-runner_0.2.0_windows_amd64.exe.
-          asset="app-runner_${TAG#v}_windows_amd64.exe"
+          # Assets carry no version: the tag already pins it. Name them
+          # <app>-<platform>-<arch>.<ext>, for example app-runner-windows-amd64.exe.
+          asset="app-runner-windows-amd64.exe"
           mv dist/app-runner.exe "dist/${asset}"
           gh release create "$TAG" "dist/${asset}" \
             --repo "$GITHUB_REPOSITORY" \

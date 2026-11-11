@@ -34,8 +34,8 @@ node scripts/ui-test.cjs
    `file_version` 与 `ProductVersion`，统一改为 `X.Y.Z`（不带 `v`）。
 2. 提交后打 annotated tag：`git tag -a vX.Y.Z -m "App Runner vX.Y.Z"`。
 3. 推送分支与 tag：`git push && git push local`，再 `git push origin vX.Y.Z && git push local vX.Y.Z`。
-4. CI 在 tag 上构建并自动创建 GitHub Release，资产命名为
-   `app-runner_<version>_windows_amd64.exe`（GoReleaser 风格，版本取 tag 去掉 `v`）。
+4. CI 在 tag 上构建并自动创建 GitHub Release，资产命名为 `app-runner-windows-amd64.exe`；
+   文件名不带版本号，版本以 tag 为准。
 5. 用 `gh release view vX.Y.Z` 确认资产已上传且大小正常。
 
 ## 部署本机 live
