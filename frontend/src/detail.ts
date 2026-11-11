@@ -109,23 +109,25 @@ function linkCard(link: Link, index: number): string {
 function linksHTML(): string {
  const links = draft!.relatedLinks;
  if (!links.length) {
-  return '<button type="button" class="link-add wide" id="add-link">' + icons.plus + '<b>添加相关链接</b><span>官网、下载页或使用文档等地址</span></button>';
+  return '<button type="button" class="list-add wide" id="add-link">' + icons.plus + '<b>添加相关链接</b><span>官网、下载页或使用文档等地址</span></button>';
  }
  return '<p class="link-hint">官网、下载页或使用文档等外部地址。</p>'
   + '<div class="link-list">' + links.map(linkCard).join('') + '</div>'
-  + '<button type="button" class="link-add" id="add-link">' + icons.plus + '添加链接</button>';
+  + '<button type="button" class="list-add" id="add-link">' + icons.plus + '添加链接</button>';
 }
 function updateHTML(ctx: SheetContext): string {
  const updaters = draft!.updater;
- return '<div class="sheet-heading"><h3>更新方式</h3><button type="button" class="btn small" id="add-updater">' + icons.plus + '添加操作</button></div>'
-  + (updaters.length
-   ? '<div class="rows">' + updaters.map((command, index) => {
-     const colon = command.indexOf(':'), action = colon < 0 ? command.trim() : command.slice(0, colon).trim(), parameter = colon < 0 ? '' : command.slice(colon + 1);
-     const known = ['PIN','RMC','UNPKG'].includes(action);
-     return '<div class="row-item" data-row="' + index + '"><span class="step">' + (index + 1) + '</span><select aria-label="更新操作 ' + (index + 1) + '" data-action="' + index + '">' + (known ? '' : '<option value="' + escape(action) + '">' + escape(action || '请选择') + '</option>') + '<option value="PIN"' + (action === 'PIN' ? ' selected' : '') + '>固定文件/目录</option><option value="RMC"' + (action === 'RMC' ? ' selected' : '') + '>清空目录</option><option value="UNPKG"' + (action === 'UNPKG' ? ' selected' : '') + '>解包安装包</option></select><input aria-label="更新参数 ' + (index + 1) + '" data-param="' + index + '" value="' + escape(parameter) + '" placeholder="' + (action === 'PIN' ? '相对于 content 的路径' : '无需参数') + '"' + (action === 'PIN' ? '' : ' disabled') + '><button type="button" class="row-btn delete" data-remove-action="' + index + '" title="删除操作" aria-label="删除操作 ' + (index + 1) + '">' + icons.close + '</button></div>';
-    }).join('') + '</div>'
-   : '<div class="placeholder-box">还没有更新操作。添加操作后即可安装更新包。</div>')
-  + '<p class="hint">操作按顺序执行；每次安装前自动完整备份至 content.bak。<br>固定文件/目录：清空时保留指定相对路径；清空目录：删除未固定的内容；解包安装包：把 ZIP / 7z 或目录内容安装到 content。</p>'
+ const hint = '<p class="hint">操作按顺序执行；每次安装前自动完整备份至 content.bak。<br>固定文件/目录：清空时保留指定相对路径；清空目录：删除未固定的内容；解包安装包：把 ZIP / 7z 或目录内容安装到 content。</p>';
+ if (!updaters.length) {
+  return '<button type="button" class="list-add wide" id="add-updater">' + icons.plus + '<b>添加更新操作</b><span>安装更新包时按顺序执行</span></button>' + hint;
+ }
+ return '<div class="rows">' + updaters.map((command, index) => {
+  const colon = command.indexOf(':'), action = colon < 0 ? command.trim() : command.slice(0, colon).trim(), parameter = colon < 0 ? '' : command.slice(colon + 1);
+  const known = ['PIN','RMC','UNPKG'].includes(action);
+  return '<div class="row-item" data-row="' + index + '"><span class="step">' + (index + 1) + '</span><select aria-label="更新操作 ' + (index + 1) + '" data-action="' + index + '">' + (known ? '' : '<option value="' + escape(action) + '">' + escape(action || '请选择') + '</option>') + '<option value="PIN"' + (action === 'PIN' ? ' selected' : '') + '>固定文件/目录</option><option value="RMC"' + (action === 'RMC' ? ' selected' : '') + '>清空目录</option><option value="UNPKG"' + (action === 'UNPKG' ? ' selected' : '') + '>解包安装包</option></select><input aria-label="更新参数 ' + (index + 1) + '" data-param="' + index + '" value="' + escape(parameter) + '" placeholder="' + (action === 'PIN' ? '相对于 content 的路径' : '无需参数') + '"' + (action === 'PIN' ? '' : ' disabled') + '><button type="button" class="row-btn delete" data-remove-action="' + index + '" title="删除操作" aria-label="删除操作 ' + (index + 1) + '">' + icons.close + '</button></div>';
+  }).join('') + '</div>'
+  + '<button type="button" class="list-add" id="add-updater">' + icons.plus + '添加操作</button>'
+  + hint
   + '<div class="sheet-footer-note"><button type="button" class="btn" id="sheet-update"' + ((ctx.apps().find(app => app.uuid === editingId)?.updater.length) ? '' : ' disabled') + '>安装更新…</button></div>';
 }
 

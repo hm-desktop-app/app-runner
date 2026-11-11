@@ -164,8 +164,12 @@ function renderPeek(items: Item[] = commandItems()): void {
  const runnable = app.entryValid && ['GUI','CLI'].includes(app.type);
  const chips = '<span class="chip">' + escape(categoryOf(app) || '未分类') + '</span><span class="chip ' + status.tone + '">' + status.label + '</span>' + (app.updater.length ? '<span class="chip update">可更新</span>' : '') + (app.runAsAdmin ? '<span class="chip">管理员</span>' : '');
  const update = app.updater.length ? '<button type="button" class="update-box" data-update="' + escape(app.uuid) + '">' + icons.update + '<b>已配置更新方式</b><span>安装更新 ›</span></button>' : '';
+ const links = app.relatedLinks.length
+  ? '<div class="peek-links"><span class="peek-note-title">相关链接</span>' + app.relatedLinks.map(link => '<button type="button" class="peek-link" data-open-url="' + escape(link.url) + '"><span>' + escape(link.title || link.url) + '</span>' + icons.external + '</button>').join('') + '</div>'
+  : '';
  box.innerHTML = '<div class="peek-head">' + tile(app, 'large') + '<div class="peek-title"><h2>' + escape(app.title) + '</h2><div class="chips">' + chips + '</div></div></div>'
   + '<p class="peek-desc">' + (app.description ? escape(app.description) : '<span class="faint">还没有备注</span>') + '</p>'
+  + links
   + update
   + '<div class="peek-meta"><div class="peek-row"><span>启动入口</span><span class="mono">' + escape(app.entry || '未填写') + '</span></div><div class="peek-row"><span>上次使用</span><span>' + escape(relativeTime(app.lastUsed)) + '</span></div><div class="peek-row"><span>更新时间</span><span>' + escape(app.modified ? new Date(app.modified).toLocaleDateString('zh-CN') : '未知') + '</span></div><div class="peek-row"><span>所在目录</span><span class="mono" title="' + escape(app.directory) + '">' + escape(app.directory.split(/[\\/]/).pop() || '') + '</span></div></div>'
   + '<div class="peek-actions"><button type="button" class="btn primary" data-run="' + escape(app.uuid) + '"' + (runnable ? '' : ' disabled') + '>' + icons.play + '运行</button><div class="btn-row"><button type="button" class="btn" data-edit="' + escape(app.uuid) + '">' + icons.edit + '编辑</button><button type="button" class="btn" data-dir="' + escape(app.uuid) + '">' + icons.folder + '目录</button></div></div>'
@@ -188,6 +192,9 @@ function bindPeekActions(): void {
  });
  box.querySelectorAll<HTMLElement>('[data-update]').forEach(element => {
   element.onclick = () => openUpdateDialog(element.dataset.update!);
+ });
+ box.querySelectorAll<HTMLElement>('[data-open-url]').forEach(element => {
+  element.onclick = () => void perform(() => API.OpenLink(element.dataset.openUrl!));
  });
 }
 function moveCommandSelection(step: number): void {

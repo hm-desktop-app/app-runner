@@ -97,6 +97,8 @@ async function main() {
   assert.equal(await page.locator('.result').filter({hasText:'Beta Terminal'}).count(),0);
   assert.equal(await page.locator('#cmd-peek h2').textContent(),'Alpha Editor');
   assert.equal(await page.locator('#cmd-peek .peek-row').first().textContent().then(value => value.includes('app.exe')),true);
+  assert.equal(await page.locator('#cmd-peek .peek-link').count(),1,'the peek panel hides configured links');
+  assert.equal(await page.locator('#cmd-peek .peek-link span').textContent(),'官网');
   /* opening the sheet must not scroll or shift the panel underneath (focus must not move layout) */
   await page.locator('#cmd-peek [data-edit]').click();
   await page.locator('#sheet-layer.open').waitFor();
