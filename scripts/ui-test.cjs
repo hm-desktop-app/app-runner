@@ -286,7 +286,7 @@ async function main() {
   await filterItem('all').click();
   await row('Alpha Changed').click();
   await page.keyboard.press('F5');
-  await page.waitForFunction(() => document.querySelector('#activity').hidden && document.querySelectorAll('#lib-table tr[data-id]').length === 23);
+  await page.waitForFunction(() => !document.querySelector('#activity').matches(':popover-open') && document.querySelectorAll('#lib-table tr[data-id]').length === 23);
   await page.waitForFunction(() => document.querySelectorAll('#lib-table tr[data-id]').length === 23);
   assert.equal(await page.locator('.sel-name').textContent(),'Alpha Changed','refresh dropped the selection');
 

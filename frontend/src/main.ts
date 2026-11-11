@@ -78,8 +78,11 @@ function focusSearch(): void {
 }
 function setBusy(value: boolean, text = ''): void {
  busy = value;
- $('#activity').hidden = !value;
+ const activity = $('#activity');
  $('#activity-text').textContent = text;
+ /* 顶部提示放在顶层：模态对话框的遮罩盖不住它，进度始终可读 */
+ if (value && !activity.matches(':popover-open')) activity.showPopover();
+ else if (!value && activity.matches(':popover-open')) activity.hidePopover();
  $<HTMLButtonElement>('#new-app').disabled = value || loading;
 }
 function showToast(message: string): void {
