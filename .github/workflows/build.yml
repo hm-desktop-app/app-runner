@@ -52,6 +52,17 @@ jobs:
           go vet ./...
           go test ./...
 
+      # The icon, manifest and version metadata of the EXE come from a generated
+      # .syso file, which needs the pinned Wails CLI.
+      - name: Install the Wails CLI
+        run: |
+          go install github.com/wailsapp/wails/v3/cmd/wails3@v3.0.0-beta.28
+          echo "$(go env GOPATH)/bin" >> $env:GITHUB_PATH
+
+      - name: Generate Windows resources
+        working-directory: build
+        run: wails3 generate syso -arch amd64 -icon windows/icon.ico -manifest windows/wails.exe.manifest -info windows/info.json -out ../wails_windows_amd64.syso
+
       - name: Build the executable
         run: go build -tags production -trimpath -buildvcs=false -ldflags="-w -s -H windowsgui" -o bin/app-runner.exe .
 

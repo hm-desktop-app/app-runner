@@ -17,7 +17,7 @@ npm --prefix frontend ci
 wails3 build
 ```
 
-发布程序位于 `bin/app-runner.exe`。界面资源和字体已嵌入程序，无需另外分发前端目录。
+发布程序位于 `bin/app-runner.exe`。界面资源和字体已嵌入程序，无需另外分发前端目录。图标、应用清单和版本信息来自构建前生成的 `wails_windows_amd64.syso`，`wails3 build` 会自动处理；直接用 `go build` 产出的 EXE 缺少这些资源。
 
 ```powershell
 .\bin\app-runner.exe --app-dir "D:\Apps"
