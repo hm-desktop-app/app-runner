@@ -107,7 +107,11 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ github.ref_name }}
         run: |
-          gh release create "$TAG" dist/app-runner.exe \
+          # GoReleaser naming: <app>_<version>_<platform>_<arch>.<ext>, for example
+          # app-runner_0.2.0_windows_amd64.exe.
+          asset="app-runner_${TAG#v}_windows_amd64.exe"
+          mv dist/app-runner.exe "dist/${asset}"
+          gh release create "$TAG" "dist/${asset}" \
             --repo "$GITHUB_REPOSITORY" \
             --title "App Runner $TAG" \
             --generate-notes
