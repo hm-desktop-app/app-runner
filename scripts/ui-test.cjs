@@ -120,6 +120,13 @@ async function main() {
   await page.locator('#cmd-search').press('Escape');
   assert.equal(await page.locator('#cmd-search').inputValue(),'','Escape did not clear the query');
   assert.equal(await page.locator('.result .tile').count() > 0,true);
+  /* pinyin initials and full pinyin also match Chinese categories */
+  await page.locator('#cmd-search').fill('kfgj');
+  await page.locator('.result').filter({hasText:'Alpha Editor'}).waitFor();
+  assert.equal(await page.locator('.result').filter({hasText:'Beta Terminal'}).count(),0,'initials matched an unrelated app');
+  await page.locator('#cmd-search').fill('kaifa');
+  assert.equal(await page.locator('.result').filter({hasText:'Alpha Editor'}).count(),1,'full pinyin did not match a category');
+  await page.locator('#cmd-search').fill('');
 
   /* the hidden library is neither rendered nor fetched at startup */
   const startupTable = await page.evaluate(() => ({rows:document.querySelectorAll('#lib-table tr[data-id]').length,icons:performance.getEntriesByType('resource').filter(entry => entry.name.includes('/app-icons/')).length}));

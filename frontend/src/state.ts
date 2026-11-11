@@ -1,3 +1,5 @@
+import {pinyin} from 'pinyin-pro';
+
 export interface Link {title: string; url: string}
 export interface Profile {
  uuid: string; category: string; description: string; title: string; type: string; entry: string; runAsAdmin: boolean;
@@ -9,8 +11,28 @@ export interface App extends Profile {
 }
 export type SortMode = 'name' | 'modified' | 'recent';
 const collator = new Intl.Collator('zh-CN', {numeric: true, sensitivity: 'base'});
+interface PinyinKeys {full: string; initials: string}
+const pinyinCache = new Map<string, PinyinKeys>();
+/** 中文标题/分类的搜索索引：全拼（去掉空格与符号）和首字母；英文内容原样保留。 */
+function pinyinKeys(text: string): PinyinKeys {
+ const cached = pinyinCache.get(text);
+ if (cached) return cached;
+ const syllables = text ? pinyin(text, {toneType: 'none', type: 'array', nonZh: 'consecutive'}) as string[] : [];
+ const keys = {
+  full: syllables.join('').toLocaleLowerCase().replace(/[^a-z0-9]+/g, ''),
+  initials: syllables.map(syllable => syllable.split(/[^a-z0-9]+/i).filter(Boolean).map(word => word[0]).join('')).join('').toLocaleLowerCase(),
+ };
+ pinyinCache.set(text, keys);
+ return keys;
+}
+/** 搜索文本：原文、备注，以及标题与分类的拼音/首字母。 */
+function searchText(app: App): string {
+ const title = pinyinKeys(app.title), category = pinyinKeys(app.category || '');
+ return [app.title, app.category || '', app.description || '', title.full, title.initials, category.full, category.initials].join(' ').toLocaleLowerCase();
+}
 export function visibleApps(apps: App[], query: string, mode: SortMode): App[] {
- return apps.filter(a => [a.title, a.category || '', a.description || ''].join(' ').toLocaleLowerCase().includes(query.trim().toLocaleLowerCase())).sort((a,b) => {
+ const needle = query.trim().toLocaleLowerCase();
+ return apps.filter(a => searchText(a).includes(needle)).sort((a,b) => {
   if (mode !== 'name') {
    const key = mode === 'modified' ? 'modified' : 'lastUsed';
    const delta = timestamp(b[key]) - timestamp(a[key]);
@@ -98,11 +120,15 @@ export function recentApps(apps: App[], limit: number): App[] {
 }
 function score(app: App, needle: string): number {
  const title = app.title.toLocaleLowerCase();
+ const titleKeys = pinyinKeys(app.title);
  if (title === needle) return 0;
  if (title.startsWith(needle)) return 1;
  if (title.includes(needle)) return 2;
- if ((app.category || '').toLocaleLowerCase().includes(needle)) return 3;
- if ([app.description, app.entry].join(' ').toLocaleLowerCase().includes(needle)) return 4;
+ if (titleKeys.full.startsWith(needle) || titleKeys.initials.startsWith(needle)) return 3;
+ if (titleKeys.full.includes(needle) || titleKeys.initials.includes(needle)) return 4;
+ const category = (app.category || '').toLocaleLowerCase(), categoryKeys = pinyinKeys(app.category || '');
+ if (category.includes(needle) || categoryKeys.full.includes(needle) || categoryKeys.initials.includes(needle)) return 5;
+ if ([app.description, app.entry].join(' ').toLocaleLowerCase().includes(needle)) return 6;
  return 9;
 }
 /** 命令中心的关键词排序：标题匹配优先，其次分类，最后备注与入口。 */

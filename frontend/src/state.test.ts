@@ -64,6 +64,17 @@ test('recent apps skip never used ones and order by time',()=>{
  assert.deepEqual(recentApps(apps,1).map(a=>a.title),['New']);
 });
 
+test('pinyin and initials find Chinese titles and categories',()=>{
+ const apps=[item('微信',{category:'社交'}),item('剪映专业版',{category:'开发工具'}),item('网易云音乐'),item('Obsidian')];
+ assert.deepEqual(visibleApps(apps,'wx','name').map(a=>a.title),['微信']);
+ assert.deepEqual(visibleApps(apps,'weixin','name').map(a=>a.title),['微信']);
+ assert.deepEqual(visibleApps(apps,'jianying','name').map(a=>a.title),['剪映专业版']);
+ assert.deepEqual(visibleApps(apps,'kfgj','name').map(a=>a.title),['剪映专业版']);
+ assert.deepEqual(visibleApps(apps,'wyyyy','name').map(a=>a.title),['网易云音乐']);
+ assert.deepEqual(visibleApps(apps,'obs','name').map(a=>a.title),['Obsidian']);
+ assert.deepEqual(rankApps(apps,'wx').map(a=>a.title),['微信']);
+});
+
 test('command ranking prefers title matches and falls back to usage',()=>{
  const apps=[item('Code',{lastUsed:'2026-10-01T00:00:00Z'}),item('Visual Studio Code',{lastUsed:'2026-10-09T00:00:00Z'}),item('Editor',{category:'code'}),item('Other',{description:'code runner'}),item('Unrelated')];
  assert.deepEqual(rankApps(apps,'code').map(a=>a.title),['Code','Visual Studio Code','Editor','Other']);
