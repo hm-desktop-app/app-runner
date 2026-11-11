@@ -45,18 +45,27 @@ jobs:
         working-directory: frontend
         run: |
           npm test
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           npm run build
 
       - name: Vet and test the Go service
         run: |
           go vet ./...
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           go test ./...
 
       # The icon, manifest and version metadata of the EXE come from a generated
       # .syso file, which needs the pinned Wails CLI.
       - name: Install the Wails CLI
+        # Module downloads occasionally fail on transient sum.golang.org errors;
+        # the install must also fail the step instead of being masked by echo.
         run: |
-          go install github.com/wailsapp/wails/v3/cmd/wails3@v3.0.0-beta.28
+          for ($attempt = 1; $attempt -le 3; $attempt++) {
+            go install github.com/wailsapp/wails/v3/cmd/wails3@v3.0.0-beta.28
+            if ($LASTEXITCODE -eq 0) { break }
+            if ($attempt -eq 3) { exit 1 }
+            Start-Sleep -Seconds 5
+          }
           echo "$(go env GOPATH)/bin" >> $env:GITHUB_PATH
 
       - name: Generate Windows resources
