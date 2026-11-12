@@ -76,6 +76,20 @@ function focusSearch(): void {
  const input = (mode === 'command' ? $('#cmd-search') : $('#lib-search')) as HTMLInputElement;
  input.focus();input.select();
 }
+/** 窗口重新激活时清空当前视图的搜索，避免上次的输入残留。 */
+function clearSearch(): void {
+ if (mode === 'command') {
+  if (!commandQuery) return;
+  commandQuery = '';
+  $<HTMLInputElement>('#cmd-search').value = '';
+  renderCommand();
+  return;
+ }
+ if (!libraryQuery) return;
+ libraryQuery = '';
+ $<HTMLInputElement>('#lib-search').value = '';
+ scheduleTable();
+}
 function setBusy(value: boolean, text = ''): void {
  busy = value;
  const activity = $('#activity');
@@ -717,7 +731,11 @@ document.addEventListener('keydown', event => {
   event.preventDefault();
  }
 });
-window.addEventListener('focus', () => {if (!detail.isOpen() && !document.querySelector('dialog[open]')) focusSearch();});
+window.addEventListener('focus', () => {
+ if (detail.isOpen() || document.querySelector('dialog[open]')) return;
+ clearSearch();
+ focusSearch();
+});
 
 document.addEventListener('load', event => {
  const image = event.target;

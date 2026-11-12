@@ -88,7 +88,10 @@ async function main() {
   assert.equal(await page.locator('.cmd-group').first().textContent(),'全部应用','empty history should fall back to all apps');
   assert.equal(await page.locator('#cmd-close').count(),1,'the command view has no close button');
   assert.equal(await page.evaluate(() => document.fonts.check('13px Harmony')),true,'the HarmonyOS font did not load');
+  await page.locator('#cmd-search').fill('alpha');
+  await page.locator('.result').filter({hasText:'Alpha Editor'}).waitFor();
   await page.evaluate(() => {document.querySelector('#lib-sort').focus();window.dispatchEvent(new Event('focus'));});
+  assert.equal(await page.locator('#cmd-search').inputValue(),'','window activation did not clear the command search');
   assert.equal(await page.evaluate(() => document.activeElement?.id),'cmd-search','window activation did not focus the command search');
 
   /* searching, keyboard selection and command-only mode */
@@ -350,6 +353,10 @@ async function main() {
   await page.locator('body').click({position:{x:600,y:400}});
   await page.keyboard.press('Control+k');
   assert.equal(await page.evaluate(() => document.activeElement?.id),'lib-search','Ctrl K did not focus the search');
+  await page.locator('#lib-search').fill('alpha');
+  await page.evaluate(() => {document.querySelector('#lib-sort').focus();window.dispatchEvent(new Event('focus'));});
+  assert.equal(await page.locator('#lib-search').inputValue(),'','window activation did not clear the library search');
+  assert.equal(await page.evaluate(() => document.activeElement?.id),'lib-search','window activation did not focus the library search');
   await page.locator('#lib-search').fill('alpha');
   await page.keyboard.press('Escape');
   assert.equal(await page.locator('#lib-search').inputValue(),'','Escape did not clear the library query');
