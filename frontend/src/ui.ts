@@ -4,7 +4,6 @@ export const $ = <T extends HTMLElement = HTMLElement>(selector: string): T => d
 export const $$ = <T extends HTMLElement = HTMLElement>(selector: string): T[] => Array.from(document.querySelectorAll<T>(selector));
 const entities: Record<string,string> = {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'};
 export const escape = (value: string): string => String(value).replace(/[&<>"']/g, ch => entities[ch]!);
-export const dateTime = (value: string | null): string => value ? new Date(value).toLocaleString('zh-CN', {hour12:false}) : '未知';
 
 const svg = (body: string, attributes = 'fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"'): string => '<svg viewBox="0 0 24 24" ' + attributes + '>' + body + '</svg>';
 export const icons = {

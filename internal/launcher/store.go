@@ -59,6 +59,7 @@ func (s *Store) Scan() (Snapshot, error) {
 		return result, fmt.Errorf("无法读取应用库：%w", err)
 	}
 	recent := s.readState()
+	s.reclaimStaging(entries)
 	next := map[string]App{}
 	for _, item := range entries {
 		if !item.IsDir() || item.Type()&os.ModeSymlink != 0 || strings.HasPrefix(strings.ToLower(item.Name()), ".app-runner-new-") {
@@ -246,22 +247,6 @@ func (s *Store) RecordLaunch(id string) error {
 	a.LastUsed = &now
 	s.apps[id] = a
 	return nil
-}
-
-func (s *Store) RefreshApp(id string) (App, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	a, ok := s.apps[id]
-	if !ok {
-		return a, errors.New("应用不存在")
-	}
-	if st, err := os.Stat(filepath.Join(a.Directory, "content")); err == nil {
-		modified := st.ModTime()
-		a.Modified = &modified
-	}
-	refreshMetadata(&a)
-	s.apps[id] = a
-	return a, nil
 }
 
 func refreshMetadata(a *App) {

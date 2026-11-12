@@ -59,6 +59,28 @@ func TestCreateDirectoryOnlyDeploysOnValidSave(t *testing.T) {
 		t.Fatal("cleanup removed deployed application")
 	}
 }
+func TestScanReclaimsCrashedStagingWithoutTouchingPendingImports(t *testing.T) {
+	library := t.TempDir()
+	stale := filepath.Join(library, ".app-runner-new-crashed")
+	write(t, filepath.Join(stale, "content", "app.exe"), "stale copy")
+	store := NewStore(library)
+	if len(scan(t, store).Apps) != 0 {
+		t.Fatal("staging directory appeared as an application")
+	}
+	if _, err := os.Stat(stale); !os.IsNotExist(err) {
+		t.Fatal("crashed staging directory was not reclaimed")
+	}
+	source := t.TempDir()
+	write(t, filepath.Join(source, "app.exe"), "fresh copy")
+	info, err := store.PrepareNewApp(source, "pending-app")
+	if err != nil {
+		t.Fatal(err)
+	}
+	scan(t, store)
+	if !store.CheckNewEntry(info.Token, "app.exe") {
+		t.Fatal("scan removed the pending import")
+	}
+}
 func TestCreateArchivesCancelCollisionAndUnsafeNames(t *testing.T) {
 	library := t.TempDir()
 	source := filepath.Join(t.TempDir(), "My App ZIP.zip")

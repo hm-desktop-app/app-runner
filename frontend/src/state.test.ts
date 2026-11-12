@@ -1,6 +1,6 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {visibleApps,profileOf,age,validation,groupApps,suggestedAppName,statusOf,relativeTime,recentApps,rankApps,filterLibrary,filterKey,parseFilter} from './state.ts';
+import {visibleApps,profileOf,validation,groupApps,suggestedAppName,statusOf,relativeTime,recentApps,rankApps,filterLibrary,filterKey,parseFilter} from './state.ts';
 import type {App} from './state.ts';
 
 const item = (title: string, extras: Partial<App> = {}): App => ({uuid:title,title,category:'',description:'',type:'GUI',entry:'app.exe',runAsAdmin:false,relatedLinks:[],updater:[],directory:title,modified:null,lastUsed:null,version:'',entryValid:true,profileError:'',...extras});
@@ -9,10 +9,6 @@ test('sorts timestamps descending, sends unknown dates last, and filters titles'
  assert.deepEqual(visibleApps(apps,' tool ','name').map(a=>a.title),['Tool 2','Tool 10']);
  assert.deepEqual(visibleApps(apps,'','modified').map(a=>a.title),['Other','Tool 2','Tool 10']);
  assert.equal(apps[0].title,'Tool 10');
-});
-test('age boundaries count exactly 30 and 90 days on the older side', () => {
- const now = Date.parse('2026-10-11T00:00:00Z'), days = (n: number) => new Date(now-n*86400000).toISOString();
- assert.equal(age(days(29),now),'fresh');assert.equal(age(days(30),now),'warm');assert.equal(age(days(90),now),'old');assert.equal(age(days(-1),now),'fresh');assert.equal(age(null,now),'old');
 });
 test('editing a draft leaves the stored row unchanged and rejects unsafe pin paths', () => {
  const app = item('App',{relatedLinks:[{title:'Home',url:'example.com'}],updater:['PIN:settings','RMC','UNPKG']});
@@ -75,6 +71,15 @@ test('pinyin and initials find Chinese titles and categories',()=>{
  assert.deepEqual(rankApps(apps,'wx').map(a=>a.title),['微信']);
 });
 
+test('library and command search share one field set including entry',()=>{
+ const apps=[item('Alpha',{entry:'bin/alpha.exe'}),item('Beta',{description:'entry helper'}),item('Gamma',{category:'工具'}),item('Delta')];
+ assert.deepEqual(visibleApps(apps,'alpha.exe','name').map(a=>a.title),['Alpha']);
+ assert.deepEqual(rankApps(apps,'alpha.exe').map(a=>a.title),['Alpha']);
+ assert.deepEqual(visibleApps(apps,'entry','name').map(a=>a.title),['Beta']);
+ for (const query of ['alpha','alpha.exe','entry','工具','gj','gm','nothing']) {
+  assert.deepEqual(rankApps(apps,query).map(a=>a.uuid).sort(),visibleApps(apps,query,'name').map(a=>a.uuid).sort(),'search membership diverged for ' + query);
+ }
+});
 test('command ranking prefers title matches and falls back to usage',()=>{
  const apps=[item('Code',{lastUsed:'2026-10-01T00:00:00Z'}),item('Visual Studio Code',{lastUsed:'2026-10-09T00:00:00Z'}),item('Editor',{category:'code'}),item('Other',{description:'code runner'}),item('Unrelated')];
  assert.deepEqual(rankApps(apps,'code').map(a=>a.title),['Code','Visual Studio Code','Editor','Other']);

@@ -13,7 +13,7 @@
   <section class="view cmd-view is-active" id="cmd-view" aria-label="命令中心">
    <div class="cmd-search">
     <span class="cmd-search-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.2-3.2"/></svg></span>
-    <input id="cmd-search" placeholder="搜索应用、分类或备注；输入 > 只看命令" autocomplete="off" spellcheck="false" role="combobox" aria-expanded="true" aria-controls="cmd-results" aria-label="搜索应用或命令">
+    <input id="cmd-search" placeholder="搜索名称、分类、备注或入口；支持拼音；输入 > 只看命令" autocomplete="off" spellcheck="false" role="combobox" aria-expanded="true" aria-controls="cmd-results" aria-label="搜索应用或命令">
     <kbd class="esc">Esc</kbd>
     <button type="button" class="win-close" id="cmd-close" title="收起窗口" aria-label="收起窗口"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
    </div>
@@ -31,7 +31,7 @@
    <div class="lib-toolbar">
    <button type="button" class="lib-back" id="lib-back" title="返回命令中心 · Esc" aria-label="返回命令中心"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m14 6-6 6 6 6"/></svg></button>
     <div class="lib-title"><h2>应用库</h2><p id="lib-count"></p></div>
-    <label class="lib-search"><span aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.2-3.2"/></svg></span><input id="lib-search" placeholder="搜索应用、分类或备注…" autocomplete="off" spellcheck="false" aria-label="搜索应用"></label>
+    <label class="lib-search"><span aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.2-3.2"/></svg></span><input id="lib-search" placeholder="搜索名称、分类、备注或入口；支持拼音…" autocomplete="off" spellcheck="false" aria-label="搜索应用"></label>
     <div class="lib-tools">
      <select class="sort" id="lib-sort" aria-label="排序方式"><option value="recent">最近使用</option><option value="name">名称</option><option value="modified">更新时间</option></select>
      <button type="button" class="btn primary" id="new-app"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>新建应用</button>
@@ -65,7 +65,6 @@
 
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
 <div class="activity" id="activity" role="status" popover="manual"><span class="spinner" aria-hidden="true"></span><span id="activity-text"></span></div>
-<div id="context-menu" role="menu" hidden></div>
 
 <dialog id="category-dialog"><form id="category-form"><h2>新建分类</h2><p id="category-dialog-message"></p><label for="category-name">分类名称</label><input id="category-name" autocomplete="off" placeholder="如：开发工具"><p id="category-dialog-error" role="alert"></p><div class="dialog-actions"><button id="category-cancel" type="button">取消</button><button id="category-create" type="submit" class="primary">创建分类</button></div></form></dialog>
 <dialog id="group-edit-dialog"><form id="group-edit-form"><h2>编辑分类</h2><p id="group-edit-summary"></p><label for="group-edit-name">分类名称</label><input id="group-edit-name" autocomplete="off"><p id="group-edit-error" role="alert"></p><p class="dialog-hint">删除分类后，组内应用会移至“未分类”。</p><div class="dialog-actions"><button id="group-delete" type="button" class="danger-button">删除分类</button><button id="group-edit-cancel" type="button">取消</button><button id="group-rename" type="submit" class="primary">重命名</button></div></form></dialog>

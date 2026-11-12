@@ -25,14 +25,17 @@ function pinyinKeys(text: string): PinyinKeys {
  pinyinCache.set(text, keys);
  return keys;
 }
-/** 搜索文本：原文、备注，以及标题与分类的拼音/首字母。 */
+/** 命令中心与应用库共用的匹配字段：名称、分类、备注、入口，以及名称与分类的拼音/首字母。 */
 function searchText(app: App): string {
  const title = pinyinKeys(app.title), category = pinyinKeys(app.category || '');
- return [app.title, app.category || '', app.description || '', title.full, title.initials, category.full, category.initials].join(' ').toLocaleLowerCase();
+ return [app.title, app.category || '', app.description || '', app.entry || '', title.full, title.initials, category.full, category.initials].join(' ').toLocaleLowerCase();
+}
+function matches(app: App, needle: string): boolean {
+ return searchText(app).includes(needle);
 }
 export function visibleApps(apps: App[], query: string, mode: SortMode): App[] {
  const needle = query.trim().toLocaleLowerCase();
- return apps.filter(a => searchText(a).includes(needle)).sort((a,b) => {
+ return apps.filter(a => matches(a, needle)).sort((a,b) => {
   if (mode !== 'name') {
    const key = mode === 'modified' ? 'modified' : 'lastUsed';
    const delta = timestamp(b[key]) - timestamp(a[key]);
@@ -62,12 +65,6 @@ export function validation(profile: Profile): string {
  }
  return '';
 }
-export function age(value: string | null, now = Date.now()): string {
- if (!value) return 'old';
- const days = (now - timestamp(value)) / 86400000;
- return days < 30 ? 'fresh' : days < 90 ? 'warm' : 'old';
-}
-
 export interface CategoryGroup {category: string; apps: App[]}
 export function categoryOf(app: App): string {
  const value = (app.category || '').trim();
@@ -131,12 +128,11 @@ function score(app: App, needle: string): number {
  if ([app.description, app.entry].join(' ').toLocaleLowerCase().includes(needle)) return 6;
  return 9;
 }
-/** 命令中心的关键词排序：标题匹配优先，其次分类，最后备注与入口。 */
+/** 命令中心的关键词排序：先用 visibleApps 的同一套字段匹配，再按标题优先排序。 */
 export function rankApps(apps: App[], query: string, limit = 0): App[] {
  const needle = query.trim().toLocaleLowerCase();
  if (!needle) return recentApps(apps, limit > 0 ? limit : apps.length);
- const ranked = apps.map(app => ({app, score: score(app, needle)}))
-  .filter(entry => entry.score < 9)
+ const ranked = apps.filter(app => matches(app, needle)).map(app => ({app, score: score(app, needle)}))
   .sort((a,b) => a.score - b.score || timestamp(b.app.lastUsed) - timestamp(a.app.lastUsed) || collator.compare(a.app.title, b.app.title))
   .map(entry => entry.app);
  return limit > 0 ? ranked.slice(0, limit) : ranked;

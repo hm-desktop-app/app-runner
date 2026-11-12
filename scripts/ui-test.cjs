@@ -70,6 +70,16 @@ async function main() {
    await page.locator('#lib-back').click();
    await page.locator('#cmd-view.is-active').waitFor();
   };
+  /* Playwright's synthetic drag is occasionally lost under load; retrying keeps a real
+     handler regression failing while tolerating a dropped browser drag event. */
+  const dragUntil = async (source,target,done) => {
+   for (let attempt = 0; attempt < 3; attempt++) {
+    if (attempt) {await page.waitForTimeout(250);console.log('retrying a dropped drag');}
+    await source.dragTo(target,{steps:5});
+    for (let i = 0; i < 20; i++) {if (await done()) return true;await new Promise(resolve => setTimeout(resolve, 100));}
+   }
+   return false;
+  };
   const openSettings = async () => {
    await runCommand('设置');
    await page.locator('#sheet-layer.open').waitFor();
@@ -184,7 +194,7 @@ async function main() {
   await page.locator('#lib-table .tile.loaded').first().waitFor();
   assert.equal(await alphaRow.locator('.tile-icon').evaluate(image => image.naturalWidth > 0),true,'ICO did not decode');
   await row('Beta Terminal').click();
-  await page.waitForFunction(() => document.querySelectorAll('#lib-table .tile.loaded').length === 1,'broken icon was not hidden');
+  await page.waitForFunction(() => document.querySelectorAll('#lib-table .tile.loaded').length === 1,undefined,'broken icon was not hidden');
 
   /* edit sheet saves to disk and keeps the table in sync */
   await alphaRow.click();
@@ -205,10 +215,10 @@ async function main() {
   await page.locator('#sheet-layer.open').waitFor();
   await page.locator('[data-tab=links]').click();
   assert.equal(await page.locator('#sheet-body [data-link]').count(),2);
-  assert.equal(await page.locator('#sheet-body [data-open-link]').first().isEnabled(),true,'a configured link cannot be opened');
+  assert.equal(await page.locator('#sheet-body [data-open-link]').first().isEnabled(),true,'a configured link is not openable');
   await page.locator('#add-link').click();
   assert.equal(await page.evaluate(() => document.activeElement?.getAttribute('data-key')),'title','adding a link did not focus its name');
-  assert.equal(await page.locator('#sheet-body [data-open-link]').nth(1).isDisabled(),true,'a blank link can be opened');
+  assert.equal(await page.locator('#sheet-body [data-open-link]').nth(1).isDisabled(),true,'a blank link is openable');
   await page.locator('#sheet-body [data-link="1"][data-key=title]').fill('文档');
   await page.locator('#sheet-body [data-link="1"][data-key=url]').fill('docs.example.com');
   await page.locator('#sheet-body [data-link="1"][data-key=url]').blur();
@@ -226,6 +236,47 @@ async function main() {
   assert.equal((disk.match(/\[\[related_links\]\]/g) || []).length,2,'blank link rows were saved');
   assert.match(disk,/PIN:data/);
 
+  /* a link without an address is not saved and legacy entries are skipped in the peek panel */
+  await row('Alpha Changed').locator('[data-act=edit]').click();
+  await page.locator('#sheet-layer.open').waitFor();
+  await page.locator('[data-tab=links]').click();
+  await page.locator('#add-link').click();
+  await page.locator('#sheet-body [data-link="2"][data-key=title]').fill('只有名字');
+  await page.locator('#sheet-save').click();
+  await page.locator('#sheet-layer.open').waitFor({state:'hidden'});
+  disk = await text(path.join(alpha,'app.toml'));
+  assert.equal((disk.match(/\[\[related_links\]\]/g) || []).length,2,'a link without a URL was saved');
+  /* legacy profiles may still contain a link without an address */
+  await fs.writeFile(path.join(alpha,'app.toml'),disk.trimEnd() + '\n\n[[related_links]]\ntitle = \'旧数据\'\nurl = \'\'\n');
+  const scanned = page.waitForResponse(response => response.request().method() === 'POST');
+  await page.keyboard.press('F5');
+  await scanned;
+  await page.waitForTimeout(200);
+  await openCommand();
+  await page.locator('#cmd-search').fill('Alpha Changed');
+  await page.waitForFunction(() => document.querySelector('#cmd-peek h2')?.textContent === 'Alpha Changed');
+  assert.equal(await page.locator('#cmd-peek .peek-link').count(),2,'the peek panel dropped configured links');
+  assert.equal(await page.locator('#cmd-peek .peek-link[data-open-url=""]').count(),0,'a link without a URL is clickable');
+  await openLibrary();
+
+  /* a double click on 保存 must not issue two concurrent saves */
+  let saveCalls = 0;
+  await page.route('**/*',async route => {
+   const request = route.request();
+   if (request.method() === 'POST' && (request.postData() || '').includes('"relatedLinks"')) {saveCalls++;await new Promise(resolve => setTimeout(resolve,700));}
+   await route.continue();
+  });
+  await row('Alpha Changed').locator('[data-act=edit]').click();
+  await page.locator('#sheet-layer.open').waitFor();
+  await page.locator('#edit-description').fill('double save guard');
+  await page.locator('#sheet-save').dblclick();
+  await page.keyboard.press('Escape');
+  assert.equal(await page.locator('#sheet-layer.open').count(),1,'Escape closed the sheet while saving');
+  await page.locator('#sheet-layer.open').waitFor({state:'hidden'});
+  assert.equal(saveCalls,1,'a double click on save issued ' + saveCalls + ' saves');
+  await page.unroute('**/*');
+  assert.match(await text(path.join(alpha,'app.toml')),/double save guard/);
+
   /* installing an update disables the dialog controls until it finishes */
   const updateSource = await fs.mkdtemp(path.join(output,'ui-update-'));
   await fs.mkdir(path.join(updateSource,'data'),{recursive:true});
@@ -235,16 +286,16 @@ async function main() {
   await page.locator('[data-tab=update]').click();
   await page.locator('#sheet-update').click();
   await page.locator('#update-source-dialog[open]').waitFor();
-  assert.equal(await page.locator('#update-source').isEnabled(),true,'the source field starts disabled');
+  assert.equal(await page.locator('#update-source').isEnabled(),true,'the source field does not start enabled');
   await page.locator('#update-kind').selectOption('directory');
   await page.locator('#update-source').fill(updateSource);
   /* hold the call so the busy state is observable */
   await page.route('**/*',async route => {if (route.request().method() === 'POST') await new Promise(resolve => setTimeout(resolve,1200));await route.continue();});
   await page.locator('#update-install').click();
   await page.waitForFunction(() => document.querySelector('#activity').matches(':popover-open'));
-  assert.equal(await page.locator('#update-install').isDisabled(),true,'the install button stays enabled while installing');
-  assert.equal(await page.locator('#update-source').isDisabled(),true,'the source field stays enabled while installing');
-  assert.equal(await page.locator('#update-source-cancel').isDisabled(),true,'cancel stays enabled while installing');
+  assert.equal(await page.locator('#update-install').isDisabled(),true,'the install button is enabled while installing');
+  assert.equal(await page.locator('#update-source').isDisabled(),true,'the source field is enabled while installing');
+  assert.equal(await page.locator('#update-source-cancel').isDisabled(),true,'cancel is enabled while installing');
   await page.waitForFunction(() => !document.querySelector('#activity').matches(':popover-open'),undefined,{timeout:20000});
   await page.unroute('**/*');
   assert.equal(await page.locator('#update-install').isDisabled(),false,'the install button was not re-enabled');
@@ -293,8 +344,8 @@ async function main() {
   await filterItem('category:图形工具').waitFor();
   await page.locator('#lib-search').fill('');
   await page.waitForFunction(() => document.querySelectorAll('#lib-table tr[data-id]').length === 23);
-  await row('Alpha Changed').dragTo(filterItem('category:图形工具'));
-   for (let i = 0; i < 50; i++) {if (/category = '图形工具'/.test(await text(path.join(alpha,'app.toml')))) break;await new Promise(resolve => setTimeout(resolve, 100));}
+  await page.waitForTimeout(200);
+  assert.ok(await dragUntil(row('Alpha Changed'),filterItem('category:图形工具'),async () => /category = '图形工具'/.test(await text(path.join(alpha,'app.toml')))),'dragging a row onto a category filter did not move it');
   assert.match(await text(path.join(alpha,'app.toml')),/category = '图形工具'/);
   await filterItem('category:图形工具').click();
   await page.waitForFunction(() => document.querySelectorAll('#lib-table tr[data-id]').length === 1);
@@ -318,6 +369,18 @@ async function main() {
   await page.waitForFunction(() => !document.querySelector('#group-edit-dialog').open);
   assert.match(await text(path.join(alpha,'app.toml')),/category = ''/);
   assert.equal(await filterItem('category:设计工具').count(),0);
+
+  /* dragging a row onto 新建分类 creates the category and moves the row */
+  await filterItem('all').click();
+  await page.waitForTimeout(200);
+  assert.ok(await dragUntil(row('Alpha Changed'),page.locator('#new-category'),() => page.evaluate(() => !!document.querySelector('#category-dialog[open]'))),'dropping a row on 新建分类 did not open the dialog');
+  assert.equal(await page.locator('#category-dialog-message').textContent(),'将“Alpha Changed”移入新分类');
+  await page.locator('#category-name').fill('拖入分类');
+  await page.locator('#category-create').click();
+  await page.waitForFunction(() => !document.querySelector('#category-dialog').open);
+  for (let i = 0; i < 50; i++) {if (/category = '拖入分类'/.test(await text(path.join(alpha,'app.toml')))) break;await new Promise(resolve => setTimeout(resolve, 100));}
+  assert.match(await text(path.join(alpha,'app.toml')),/category = '拖入分类'/);
+  await filterItem('category:拖入分类').waitFor();
 
   /* refresh keeps the current selection and the table */
   await filterItem('all').click();
@@ -355,9 +418,8 @@ async function main() {
   assert.equal(await page.evaluate(() => document.activeElement?.id),'lib-search','Ctrl K did not focus the search');
   await page.locator('#lib-search').fill('alpha');
   await page.evaluate(() => {document.querySelector('#lib-sort').focus();window.dispatchEvent(new Event('focus'));});
-  assert.equal(await page.locator('#lib-search').inputValue(),'','window activation did not clear the library search');
+  assert.equal(await page.locator('#lib-search').inputValue(),'alpha','window activation discarded the library query');
   assert.equal(await page.evaluate(() => document.activeElement?.id),'lib-search','window activation did not focus the library search');
-  await page.locator('#lib-search').fill('alpha');
   await page.keyboard.press('Escape');
   assert.equal(await page.locator('#lib-search').inputValue(),'','Escape did not clear the library query');
   await page.keyboard.press('Escape');

@@ -15,6 +15,7 @@ export interface SheetContext {
  autohide(): boolean;
  setAutohide(value: boolean): void;
  busy(value: boolean, text?: string): void;
+ isBusy(): boolean;
  changed(app: App): void;
  created(app: App): void;
  toast(message: string): void;
@@ -224,9 +225,9 @@ async function checkEntry(ctx: SheetContext): Promise<void> {
  hint.textContent = valid ? '入口有效：相对于 content 目录，支持 re: 正则匹配文件名' : '未找到入口文件。可以先保存配置，文件就绪后按 F5 刷新。';
 }
 async function save(ctx: SheetContext): Promise<void> {
- if (!draft || !dirty() || validation(draft)) return;
- /* 没填完的链接行不落盘，首尾空格顺手清掉 */
- draft.relatedLinks = draft.relatedLinks.map(link => ({title: link.title.trim(), url: link.url.trim()})).filter(link => link.title || link.url);
+ if (ctx.isBusy() || !draft || !dirty() || validation(draft)) return;
+ /* 没有地址的链接无法打开，不落盘；首尾空格顺手清掉 */
+ draft.relatedLinks = draft.relatedLinks.map(link => ({title: link.title.trim(), url: link.url.trim()})).filter(link => link.url);
  ctx.busy(true, '正在保存配置…');
  let failure = '';
  try {
@@ -327,6 +328,7 @@ async function checkNewEntry(ctx: SheetContext): Promise<void> {
  updateCreateStatus();
 }
 async function prepare(ctx: SheetContext): Promise<void> {
+ if (ctx.isBusy()) return;
  if (!createSource.trim() || !createName.trim()) {showCreateError('请选择来源并确认应用目录名');return;}
  ctx.busy(true, '正在准备应用文件…');
  const button = document.getElementById('create-next') as HTMLButtonElement | null;
@@ -346,7 +348,7 @@ async function prepare(ctx: SheetContext): Promise<void> {
  } finally {ctx.busy(false);if (button) button.disabled = false;if (createStep === 1) updateCreateStatus();}
 }
 async function submitCreate(ctx: SheetContext): Promise<void> {
- if (!draft || !pendingNew) return;
+ if (ctx.isBusy() || !draft || !pendingNew) return;
  const error = validation(draft) || (!newEntryValid && draft.entry ? '请选择有效启动入口' : '');
  if (error) {showCreateError(error);return;}
  const token = pendingNew.token;
@@ -396,6 +398,8 @@ function render(ctx: SheetContext): void {
 }
 export async function requestClose(ctx: SheetContext): Promise<boolean> {
  if (!open) return true;
+ if (ctx.isBusy()) return false;
+
  if (open === 'edit' && dirty()) {
   if (!await API.Confirm('当前详情有未保存的更改，确定放弃吗？')) return false;
  }

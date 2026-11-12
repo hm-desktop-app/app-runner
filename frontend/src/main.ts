@@ -76,19 +76,12 @@ function focusSearch(): void {
  const input = (mode === 'command' ? $('#cmd-search') : $('#lib-search')) as HTMLInputElement;
  input.focus();input.select();
 }
-/** 窗口重新激活时清空当前视图的搜索，避免上次的输入残留。 */
+/** 窗口重新激活时清空命令中心的搜索，避免上次的输入残留；应用库保持原查询。 */
 function clearSearch(): void {
- if (mode === 'command') {
-  if (!commandQuery) return;
-  commandQuery = '';
-  $<HTMLInputElement>('#cmd-search').value = '';
-  renderCommand();
-  return;
- }
- if (!libraryQuery) return;
- libraryQuery = '';
- $<HTMLInputElement>('#lib-search').value = '';
- scheduleTable();
+ if (mode !== 'command' || !commandQuery) return;
+ commandQuery = '';
+ $<HTMLInputElement>('#cmd-search').value = '';
+ renderCommand();
 }
 function setBusy(value: boolean, text = ''): void {
  busy = value;
@@ -173,7 +166,7 @@ function renderCommand(): void {
   html += '<div class="cmd-group">命令</div>';
   html += commandList.map(item => resultRow(item, item.key === commandSelected)).join('');
  }
- if (!items.length) html = '<div class="cmd-empty">没有匹配“' + escape(commandsOnly ? query.slice(1).trim() : query) + '”<br>试试应用名称、分类、备注，或用 > 前缀只搜命令。</div>';
+ if (!items.length) html = '<div class="cmd-empty">没有匹配“' + escape(commandsOnly ? query.slice(1).trim() : query) + '”<br>试试应用名称、分类、备注、入口，或用 > 前缀只搜命令。</div>';
  $('#cmd-results').innerHTML = html;
  renderPeek(items);
  $('#cmd-stats').innerHTML = '<b>' + apps.length + ' 个应用</b><span>·</span><span>' + updatable() + ' 个可更新</span>';
@@ -199,12 +192,11 @@ function renderPeek(items: Item[] = commandItems()): void {
  const runnable = app.entryValid && ['GUI','CLI'].includes(app.type);
  const chips = '<span class="chip">' + escape(categoryOf(app) || '未分类') + '</span><span class="chip ' + status.tone + '">' + status.label + '</span>' + (app.updater.length ? '<span class="chip update">可更新</span>' : '') + (app.runAsAdmin ? '<span class="chip">管理员</span>' : '');
  const update = app.updater.length ? '<button type="button" class="update-box" data-update="' + escape(app.uuid) + '">' + icons.update + '<b>已配置更新方式</b><span>安装更新 ›</span></button>' : '';
- const links = app.relatedLinks.length
-  ? '<div class="peek-links"><span class="peek-note-title">相关链接</span>' + app.relatedLinks.map(link => '<button type="button" class="peek-link" data-open-url="' + escape(link.url) + '"><span>' + escape(link.title || link.url) + '</span>' + icons.external + '</button>').join('') + '</div>'
-  : '';
+ const links = app.relatedLinks.filter(link => link.url.trim()).map(link => '<button type="button" class="peek-link" data-open-url="' + escape(link.url) + '"><span>' + escape(link.title || link.url) + '</span>' + icons.external + '</button>').join('');
+ const linksBlock = links ? '<div class="peek-links"><span class="peek-note-title">相关链接</span>' + links + '</div>' : '';
  box.innerHTML = '<div class="peek-head">' + tile(app, 'large') + '<div class="peek-title"><h2>' + escape(app.title) + '</h2><div class="chips">' + chips + '</div></div></div>'
   + '<p class="peek-desc">' + (app.description ? escape(app.description) : '<span class="faint">还没有备注</span>') + '</p>'
-  + links
+  + linksBlock
   + update
   + '<div class="peek-meta"><div class="peek-row"><span>启动入口</span><span class="mono">' + escape(app.entry || '未填写') + '</span></div><div class="peek-row"><span>上次使用</span><span>' + escape(relativeTime(app.lastUsed)) + '</span></div><div class="peek-row"><span>更新时间</span><span>' + escape(app.modified ? new Date(app.modified).toLocaleDateString('zh-CN') : '未知') + '</span></div><div class="peek-row"><span>所在目录</span><span class="mono" title="' + escape(app.directory) + '">' + escape(app.directory.split(/[\\/]/).pop() || '') + '</span></div></div>'
   + '<div class="peek-actions"><button type="button" class="btn primary" data-run="' + escape(app.uuid) + '"' + (runnable ? '' : ' disabled') + '>' + icons.play + '运行</button><div class="btn-row"><button type="button" class="btn" data-edit="' + escape(app.uuid) + '">' + icons.edit + '编辑</button><button type="button" class="btn" data-dir="' + escape(app.uuid) + '">' + icons.folder + '目录</button></div></div>'
@@ -284,7 +276,16 @@ function renderFilters(): void {
    };
   }
  }
- $('#new-category').onclick = () => openCategoryDialog();
+ const newCategory = $<HTMLButtonElement>('#new-category');
+ newCategory.onclick = () => openCategoryDialog();
+ newCategory.ondragover = event => {if (draggedID) {event.preventDefault();newCategory.classList.add('drop-target');}};
+ newCategory.ondragleave = () => newCategory.classList.remove('drop-target');
+ newCategory.ondrop = event => {
+  event.preventDefault();
+  newCategory.classList.remove('drop-target');
+  const id = draggedID || event.dataTransfer?.getData('text/plain') || '';
+  if (id) openCategoryDialog(id);
+ };
 }
 let tableTimer = 0;
 interface TableRow {node: HTMLTableRowElement; signature: string}
@@ -605,6 +606,7 @@ const sheetCtx: detail.SheetContext = {
   setMode('library');
   renderCommand();renderLibrary();
  },
+ isBusy: () => busy,
  toast: showToast,
  closed: () => focusSearch(),
  openUpdate: id => openUpdateDialog(id),

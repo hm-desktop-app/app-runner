@@ -220,6 +220,25 @@ func (s *Store) DiscardNewApp(token string) error {
 	delete(s.imports, token)
 	return nil
 }
+
+// reclaimStaging removes staging directories left behind by a crash or a forced
+// exit; directories still owned by a pending import are kept.
+func (s *Store) reclaimStaging(entries []os.DirEntry) {
+	active := map[string]bool{}
+	for _, pending := range s.imports {
+		active[filepath.Base(pending.stage)] = true
+	}
+	for _, item := range entries {
+		name := item.Name()
+		if !item.IsDir() || item.Type()&os.ModeSymlink != 0 || !strings.HasPrefix(strings.ToLower(name), ".app-runner-new-") || active[name] {
+			continue
+		}
+		if path := filepath.Join(s.library, name); inside(s.library, path) {
+			_ = removeTree(path)
+		}
+	}
+}
+
 func (s *Store) CleanupImports() {
 	s.mu.Lock()
 	defer s.mu.Unlock()

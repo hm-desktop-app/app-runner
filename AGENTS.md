@@ -25,7 +25,7 @@ $env:NODE_PATH = (Join-Path $PWD "frontend\node_modules")
 node scripts/ui-test.cjs
 ```
 
-这些测试目前只在本地执行，CI 只做构建、Go 测试与前端单测。原生窗口行为用
+这些测试目前只在本地执行，CI 只做构建、`go vet`、Go 测试与前端单测。原生窗口行为用
 `powershell -File scripts/native-test.ps1` 验证。
 
 ## 发版
