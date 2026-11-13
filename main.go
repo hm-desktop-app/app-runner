@@ -108,6 +108,15 @@ func main() {
 		watchOnce.Do(func() { close(ready) })
 	})
 	window.RegisterHook(events.Common.WindowClosing, func(e *application.WindowEvent) { window.Hide(); e.Cancel() })
+	// WebView2 的 DOM blur 偶尔会和原生激活状态失步（窗口已失焦却不再派发 blur），
+	// 这里在窗口层捕获失去激活并通知前端，由前端按自身状态决定是否收起。
+	// 模态原生对话框会临时夺走激活，此时跳过，避免把窗口藏到错误提示框背后。
+	window.OnWindowEvent(events.Common.WindowLostFocus, func(_ *application.WindowEvent) {
+		if !window.IsVisible() || service.nativeDialogOpen() {
+			return
+		}
+		window.EmitEvent("app-runner:window-lost-focus")
+	})
 	tray := app.SystemTray.New()
 	tray.SetIcon(icon)
 	tray.SetTooltip("App Runner")

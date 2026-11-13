@@ -19,7 +19,12 @@ type LauncherService struct {
 	updating  atomic.Bool
 	hotkeyMu  sync.Mutex
 	hotkeyErr string
+	// modalDialogs 记录当前打开的模态原生对话框数量，供失去激活的处理逻辑跳过误判。
+	modalDialogs atomic.Int32
 }
+
+// nativeDialogOpen reports whether a modal native dialog currently owns the activation.
+func (s *LauncherService) nativeDialogOpen() bool { return s.modalDialogs.Load() > 0 }
 
 func (s *LauncherService) Scan() (launcher.Snapshot, error) { return s.store.Scan() }
 func (s *LauncherService) Save(id string, profile launcher.Profile) (launcher.App, error) {
@@ -42,7 +47,9 @@ func (s *LauncherService) Launch(id string) (launcher.App, error) {
 		return a, err
 	}
 	if err = s.store.RecordLaunch(id); err != nil {
+		s.modalDialogs.Add(1)
 		s.app.Dialog.Warning().SetTitle("使用记录").SetMessage("应用已启动，但无法保存使用记录：" + err.Error()).AttachToWindow(s.window).Show()
+		s.modalDialogs.Add(-1)
 	}
 	return s.store.Get(id)
 }
@@ -75,9 +82,13 @@ func (s *LauncherService) OpenLink(address string) error {
 	return s.app.Browser.OpenURL(address)
 }
 func (s *LauncherService) ShowError(message string) {
+	s.modalDialogs.Add(1)
+	defer s.modalDialogs.Add(-1)
 	s.app.Dialog.Error().SetTitle("操作失败").SetMessage(message).AttachToWindow(s.window).Show()
 }
 func (s *LauncherService) Confirm(message string) bool {
+	s.modalDialogs.Add(1)
+	defer s.modalDialogs.Add(-1)
 	result := make(chan bool, 1)
 	dialog := s.app.Dialog.Question().SetTitle("App Runner").SetMessage(message).AttachToWindow(s.window)
 	// Wails maps native Yes/No response IDs to these labels; Windows localises captions.
@@ -110,6 +121,8 @@ func (s *LauncherService) DeleteBackup(id string) error {
 	return s.store.DeleteBackup(id)
 }
 func (s *LauncherService) PickSource(kind string) (string, error) {
+	s.modalDialogs.Add(1)
+	defer s.modalDialogs.Add(-1)
 	dialog := s.app.Dialog.OpenFile().AttachToWindow(s.window)
 	switch kind {
 	case "directory":

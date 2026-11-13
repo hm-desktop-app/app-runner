@@ -1,4 +1,5 @@
 import './style.css';
+import {Events} from '@wailsio/runtime';
 import * as API from '../bindings/app-runner/launcherservice';
 import {visibleApps, rankApps, recentApps, filterLibrary, filterKey, parseFilter, groupApps, categoryOf, relativeTime, statusOf} from './state';
 import type {App, LibraryFilter, SortMode} from './state';
@@ -619,15 +620,18 @@ $<HTMLButtonElement>('#lib-close').onclick = hideWindow;
 
 /* 失焦收起：只在命令中心生效；库视图、编辑面板、忙状态和弹窗期间保持窗口打开 */
 let blurTimer = 0;
-window.addEventListener('blur', () => {
+function scheduleAutoHide(): void {
  window.clearTimeout(blurTimer);
  blurTimer = window.setTimeout(() => {
-  if (document.hasFocus() || busy || detail.isOpen() || mode !== 'command') return;
+  if (busy || detail.isOpen() || mode !== 'command') return;
   if (document.querySelector('dialog[open]')) return;
   hideWindow();
  }, 180);
-});
+}
+window.addEventListener('blur', scheduleAutoHide);
 window.addEventListener('focus', () => window.clearTimeout(blurTimer));
+/* WebView2 的 DOM blur 偶尔会和原生激活状态失步，Go 侧在窗口失去激活时补发这条事件 */
+Events.On('app-runner:window-lost-focus', scheduleAutoHide);
 
 $('#new-app').onclick = () => detail.openCreate(sheetCtx);
 $('#lib-back').onclick = () => {commandQuery = '';$<HTMLInputElement>('#cmd-search').value = '';setMode('command');};
