@@ -651,13 +651,16 @@ $<HTMLInputElement>('#cmd-search').onkeydown = event => {
 $('#cmd-results').onclick = event => {
  const row = (event.target as HTMLElement).closest<HTMLElement>('[data-key]');
  if (!row) return;
- commandSelected = row.dataset.key!;
+ const key = row.dataset.key!;
+ /* 命令项点击即执行，不再先选中再点“执行”；双击时只取第一次点击 */
+ if (key.startsWith('command:')) {if (event.detail === 1) execute(key);return;}
+ commandSelected = key;
  syncCommandSelection();
  $<HTMLInputElement>('#cmd-search').focus();
 };
 $('#cmd-results').ondblclick = event => {
  const row = (event.target as HTMLElement).closest<HTMLElement>('[data-key]');
- if (row) execute(row.dataset.key!);
+ if (row && !row.dataset.key!.startsWith('command:')) execute(row.dataset.key!);
 };
 $<HTMLInputElement>('#lib-search').oninput = event => {
  libraryQuery = (event.target as HTMLInputElement).value;

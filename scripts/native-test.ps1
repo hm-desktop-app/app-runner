@@ -41,7 +41,7 @@ public static class NativeTestWindow {
             GetWindowThreadProcessId(hwnd, out pid);
             var title = new StringBuilder(256);
             GetWindowText(hwnd, title, title.Capacity);
-            if (pid == processId && title.ToString() == "App Runner") { found = hwnd; return false; }
+            if (pid == processId && title.ToString().StartsWith("App Runner")) { found = hwnd; return false; }
             return true;
         }, IntPtr.Zero);
         return found;

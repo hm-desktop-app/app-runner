@@ -59,7 +59,8 @@ async function main() {
    if (!await inCommand()) await page.locator('#lib-back').click();
    await page.locator('#cmd-view.is-active').waitFor();
    await page.locator('#cmd-search').fill(name);
-   await page.locator('.result').filter({hasText:name}).first().dblclick();
+   /* command rows run on a single click; only app rows wait for a double click */
+   await page.locator('.result').filter({hasText:name}).first().click();
   };
   const openLibrary = async () => {
    await runCommand('打开应用库');

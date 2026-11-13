@@ -86,8 +86,13 @@ func main() {
 		ShouldQuit: func() bool { return !service.updating.Load() },
 	})
 	service.app = app
+	// 窗口标题带上版本号：任务栏按钮悬浮提示直接显示版本，与常见便携应用一致。
+	windowTitle := "App Runner"
+	if version := appVersion(); version != "" {
+		windowTitle += " " + version
+	}
 	window = app.Window.NewWithOptions(application.WebviewWindowOptions{
-		Name: "main", Title: "App Runner", Width: 920, Height: 640, MinWidth: 740, MinHeight: 470,
+		Name: "main", Title: windowTitle, Width: 920, Height: 640, MinWidth: 740, MinHeight: 470,
 		Frameless: true, InitialPosition: application.WindowCentered, DevToolsEnabled: false,
 		BackgroundColour: application.NewRGB(255, 255, 255), URL: "/",
 	})
@@ -119,7 +124,7 @@ func main() {
 	})
 	tray := app.SystemTray.New()
 	tray.SetIcon(icon)
-	tray.SetTooltip("App Runner")
+	tray.SetTooltip(windowTitle)
 	tray.OnClick(show)
 	menu := app.NewMenu()
 	menu.Add("显示窗口").OnClick(func(_ *application.Context) { show() })
