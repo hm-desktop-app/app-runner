@@ -75,6 +75,7 @@ func (s *Store) Scan() (Snapshot, error) {
 		if e != nil || !st.IsDir() || st.Mode()&os.ModeSymlink != 0 {
 			continue
 		}
+		s.reclaimUpdateStaging(directory)
 		p := Profile{RelatedLinks: []Link{}, Updater: []string{}}
 		raw, e := os.ReadFile(profilePath)
 		if e == nil {

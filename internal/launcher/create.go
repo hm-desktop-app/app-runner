@@ -252,6 +252,27 @@ func (s *Store) reclaimStaging(entries []os.DirEntry) {
 	}
 }
 
+// reclaimUpdateStaging removes temporary update directories left behind by an
+// interrupted installation; installed content never lives in them.
+func (s *Store) reclaimUpdateStaging(directory string) {
+	items, err := os.ReadDir(directory)
+	if err != nil {
+		return
+	}
+	for _, item := range items {
+		name := strings.ToLower(item.Name())
+		if !item.IsDir() || item.Type()&os.ModeSymlink != 0 {
+			continue
+		}
+		if !strings.HasPrefix(name, ".content-backup-") && !strings.HasPrefix(name, ".content-source-") && !strings.HasPrefix(name, ".content-unpack-") {
+			continue
+		}
+		if path := filepath.Join(directory, item.Name()); inside(directory, path) {
+			_ = removeTree(path)
+		}
+	}
+}
+
 func (s *Store) CleanupImports() {
 	s.mu.Lock()
 	defer s.mu.Unlock()

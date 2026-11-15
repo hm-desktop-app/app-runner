@@ -8,11 +8,21 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	"github.com/bodgit/sevenzip"
 	"golang.org/x/text/encoding/simplifiedchinese"
 )
+
+// UpdateProgress reports installation progress to the UI. Stage is one of
+// "cleanup", "backup" and "install"; Done/Total stay zero while a step has no
+// countable work.
+type UpdateProgress struct {
+	Stage string `json:"stage"`
+	Done  int    `json:"done"`
+	Total int    `json:"total"`
+}
 
 type UpdateResult struct {
 	App    App    `json:"app"`
@@ -20,10 +30,19 @@ type UpdateResult struct {
 }
 
 // All destructive paths derive from a scanned app, never a frontend path.
-func (s *Store) Update(id, packagePath string) (UpdateResult, error) {
+//
+// An update never copies the installed tree: a replace update (RMC) moves
+// content aside with one rename and moves pinned paths back, while an overlay
+// update (no RMC) backs up only the files the package overwrites.
+func (s *Store) Update(id, packagePath string, report func(UpdateProgress)) (UpdateResult, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	result := UpdateResult{}
+	emit := func(stage string, done, total int) {
+		if report != nil {
+			report(UpdateProgress{Stage: stage, Done: done, Total: total})
+		}
+	}
 	a, ok := s.apps[id]
 	if !ok {
 		return result, errors.New("应用不存在")
@@ -38,10 +57,9 @@ func (s *Store) Update(id, packagePath string) (UpdateResult, error) {
 	if err != nil {
 		return result, err
 	}
-	packagePath = input
 	content := filepath.Join(a.Directory, "content")
 	backup := filepath.Join(a.Directory, "content.bak")
-	if err := assertDirectory(content); err != nil {
+	if err = assertDirectory(content); err != nil {
 		return result, err
 	}
 	actualContent, err := filepath.EvalSymlinks(content)
@@ -56,48 +74,67 @@ func (s *Store) Update(id, packagePath string) (UpdateResult, error) {
 	if inside(actualContent, input) || inside(actualBackup, input) || (inputInfo.IsDir() && (inside(input, actualContent) || inside(input, actualBackup))) {
 		return result, errors.New("更新来源不能位于 content / content.bak 内，也不能包含这些目录")
 	}
-	if inputInfo.IsDir() {
-		sourceStage, err := os.MkdirTemp(a.Directory, ".content-source-")
-		if err != nil {
-			return result, err
-		}
-		defer removeTree(sourceStage)
-		if err = copyTree(input, sourceStage); err != nil {
-			return result, fmt.Errorf("准备更新目录失败，原内容未修改：%w", err)
-		}
-		packagePath = sourceStage
-	}
-
-	temporary, err := os.MkdirTemp(a.Directory, ".content-backup-")
+	// The package is validated in full before content is touched, so a broken
+	// archive fails without any change to the installed files.
+	pkg, err := openPackage(input, inputInfo)
 	if err != nil {
 		return result, err
 	}
-	defer os.RemoveAll(temporary)
-	if err = copyTree(content, temporary); err != nil {
-		return result, fmt.Errorf("备份失败，原内容未修改：%w", err)
-	}
-	if err = removeTree(backup); err != nil {
-		return result, fmt.Errorf("无法替换旧备份，原内容未修改：%w", err)
-	}
-	if err = os.Rename(temporary, backup); err != nil {
-		return result, err
-	}
-	result.Backup = backup
+	defer pkg.close()
+	replace := false
 	pins := []string{}
+	restores := []string{}
 	for _, command := range a.Updater {
 		action, param, _ := strings.Cut(command, ":")
 		switch strings.TrimSpace(action) {
+		case "RMC":
+			replace = true
 		case "PIN":
-			var relative string
-			relative, err = safeRelative(strings.TrimSpace(param))
+			relative, e := safeRelative(strings.TrimSpace(param))
+			if e != nil {
+				return result, e
+			}
 			pins = append(pins, filepath.Join(content, relative))
+			restores = append(restores, relative)
+		}
+	}
+	// Pinned paths are declarations, not steps: restore the shallowest ones
+	// first so a nested pin never collides with an already restored parent.
+	sort.SliceStable(restores, func(i, j int) bool {
+		return strings.Count(restores[i], string(filepath.Separator)) < strings.Count(restores[j], string(filepath.Separator))
+	})
+	if replace {
+		if err = removeTreeReport(backup, emit); err != nil {
+			return result, fmt.Errorf("无法替换旧备份，原内容未修改：%w", err)
+		}
+		if err = os.Rename(content, backup); err != nil {
+			return result, fmt.Errorf("无法备份原内容：%w", err)
+		}
+		if err = os.Mkdir(content, 0755); err != nil {
+			return result, err
+		}
+		result.Backup = backup
+		for _, relative := range restores {
+			if err = restorePin(backup, content, relative); err != nil {
+				return result, fmt.Errorf("更新失败：%w。更新前的文件已保存在 %s", err, backup)
+			}
+		}
+	} else {
+		if err = backupOverwritten(pkg, content, backup, emit); err != nil {
+			return result, err
+		}
+		result.Backup = backup
+	}
+	for _, command := range a.Updater {
+		action, _, _ := strings.Cut(command, ":")
+		switch strings.TrimSpace(action) {
 		case "RMC":
 			err = clearContent(content, pins)
 		case "UNPKG":
-			err = unpack(packagePath, content)
+			err = pkg.install(content, emit)
 		}
 		if err != nil {
-			return result, fmt.Errorf("更新失败：%w。备份已保留在 %s，可将其中的文件复制回 content 恢复", err, backup)
+			return result, fmt.Errorf("更新失败：%w。更新前的文件已保存在 %s", err, backup)
 		}
 	}
 	if info, e := os.Stat(content); e == nil {
@@ -131,55 +168,108 @@ func assertDirectory(path string) error {
 	return nil
 }
 
-func removeTree(path string) error {
+// backupOverwritten copies the files an overlay update replaces, leaving every
+// other file in place; the copy becomes content.bak so the update is revertible.
+func backupOverwritten(pkg *packageFiles, content, backup string, emit func(string, int, int)) error {
+	stage, err := os.MkdirTemp(filepath.Dir(content), ".content-backup-")
+	if err != nil {
+		return err
+	}
+	kept := false
+	defer func() {
+		if !kept {
+			_ = removeTree(stage)
+		}
+	}()
+	total := len(pkg.files)
+	for index, file := range pkg.files {
+		target := filepath.Join(content, file.relative)
+		info, e := os.Lstat(target)
+		if e != nil {
+			if !os.IsNotExist(e) {
+				return e
+			}
+			continue
+		}
+		if !info.Mode().IsRegular() {
+			continue
+		}
+		if e = copyFile(target, filepath.Join(stage, file.relative), info.Mode().Perm()); e != nil {
+			return e
+		}
+		if index%16 == 0 {
+			emit("backup", index+1, total)
+		}
+	}
+	if err = removeTreeReport(backup, emit); err != nil {
+		return fmt.Errorf("无法替换旧备份，原内容未修改：%w", err)
+	}
+	if err = os.Rename(stage, backup); err != nil {
+		return err
+	}
+	kept = true
+	return nil
+}
+
+// restorePin moves a pinned path from the backup into the fresh content tree.
+func restorePin(backup, content, relative string) error {
+	source := filepath.Join(backup, relative)
+	if _, err := os.Lstat(source); err != nil {
+		if os.IsNotExist(err) {
+			return nil
+		}
+		return err
+	}
+	target := filepath.Join(content, relative)
+	if _, err := os.Lstat(target); err == nil {
+		return fmt.Errorf("固定路径 %s 已被安装内容占用，固定操作需要排在解包之前", relative)
+	}
+	if err := os.MkdirAll(filepath.Dir(target), 0755); err != nil {
+		return err
+	}
+	return os.Rename(source, target)
+}
+
+func removeTree(path string) error { return removeTreeReport(path, nil) }
+
+// removeTreeReport deletes a directory tree depth first and reports the number
+// of removed entries. Read-only entries are retried after clearing attributes.
+func removeTreeReport(path string, emit func(string, int, int)) error {
 	if _, err := os.Lstat(path); os.IsNotExist(err) {
 		return nil
 	}
 	if err := assertDirectory(path); err != nil {
 		return err
 	}
-	if err := filepath.WalkDir(path, func(name string, item fs.DirEntry, err error) error {
+	names := []string{}
+	if err := filepath.WalkDir(path, func(name string, _ fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
-		if item.Type()&os.ModeSymlink == 0 {
-			return os.Chmod(name, 0755)
-		}
+		names = append(names, name)
 		return nil
 	}); err != nil {
 		return err
 	}
-	return os.RemoveAll(path)
-}
-
-func copyTree(source, target string) error {
-	return filepath.WalkDir(source, func(path string, item fs.DirEntry, err error) error {
-		if err != nil {
-			return err
-		}
-		if item.Type()&os.ModeSymlink != 0 {
-			return errors.New("内容包含符号链接，无法安全备份：" + path)
-		}
-		relative, err := filepath.Rel(source, path)
-		if err != nil {
-			return err
-		}
-		destination := filepath.Join(target, relative)
-		if item.IsDir() {
-			if err := os.MkdirAll(destination, 0755); err != nil {
+	total := len(names)
+	for index := len(names) - 1; index >= 0; index-- {
+		name := names[index]
+		if err := os.Remove(name); err != nil {
+			if chmodErr := os.Chmod(name, 0755); chmodErr != nil {
 				return err
 			}
-			return assertDirectory(destination)
+			if err = os.Remove(name); err != nil {
+				return err
+			}
 		}
-		info, err := item.Info()
-		if err != nil {
-			return err
+		if emit != nil && total > 1 && index%64 == 0 {
+			emit("cleanup", total-index, total)
 		}
-		if !info.Mode().IsRegular() {
-			return errors.New("内容包含特殊文件：" + path)
-		}
-		return copyFile(path, destination, info.Mode().Perm())
-	})
+	}
+	if emit != nil && total > 1 {
+		emit("cleanup", total, total)
+	}
+	return nil
 }
 
 func copyFile(source, target string, mode os.FileMode) error {
@@ -257,100 +347,219 @@ func clearContent(root string, pins []string) error {
 	return visit(root)
 }
 
-type archiveEntry struct {
-	name string
-	mode os.FileMode
-	open func() (io.ReadCloser, error)
+// packageFile is one validated file to install, relative to content.
+type packageFile struct {
+	relative string
+	mode     os.FileMode
+	open     func() (io.ReadCloser, error)
 }
 
-func unpack(packagePath, content string) error {
-	if info, err := os.Stat(packagePath); err != nil {
-		return err
-	} else if info.IsDir() {
-		return copyTree(packagePath, content)
+// packageFiles is a validated install payload: entries are checked before any
+// file is written, and a wrapping directory is stripped.
+type packageFiles struct {
+	dirs  []string
+	files []packageFile
+	close func() error
+}
+
+func openPackage(path string, info os.FileInfo) (*packageFiles, error) {
+	if info.IsDir() {
+		return openDirectoryPackage(path)
 	}
-	stage, err := os.MkdirTemp(filepath.Dir(content), ".content-unpack-")
-	if err != nil {
-		return err
-	}
-	defer os.RemoveAll(stage)
-	entries := []archiveEntry{}
-	switch strings.ToLower(filepath.Ext(packagePath)) {
+	switch strings.ToLower(filepath.Ext(path)) {
 	case ".zip":
-		reader, e := zip.OpenReader(packagePath)
-		if e != nil {
-			return e
+		reader, err := zip.OpenReader(path)
+		if err != nil {
+			return nil, err
 		}
-		defer reader.Close()
-		for _, f := range reader.File {
-			name := f.Name
-			if f.NonUTF8 {
+		result := &packageFiles{close: reader.Close}
+		for _, entry := range reader.File {
+			name := entry.Name
+			if entry.NonUTF8 {
 				if decoded, e := simplifiedchinese.GBK.NewDecoder().String(name); e == nil {
 					name = decoded
 				}
 			}
-			entries = append(entries, archiveEntry{name: name, mode: f.Mode(), open: f.Open})
-		}
-	case ".7z":
-		reader, e := sevenzip.OpenReader(packagePath)
-		if e != nil {
-			return e
-		}
-		defer reader.Close()
-		for _, f := range reader.File {
-			entries = append(entries, archiveEntry{name: f.Name, mode: f.Mode(), open: f.Open})
-		}
-	default:
-		return errors.New("只支持 .zip 和 .7z 安装包")
-	}
-	// Validate all names and links before writing extracted files.
-	for _, entry := range entries {
-		if _, err = safeRelative(entry.name); err != nil {
-			return err
-		}
-		if entry.mode&os.ModeSymlink != 0 || (!entry.mode.IsRegular() && !entry.mode.IsDir()) {
-			return errors.New("安装包包含链接或特殊文件：" + entry.name)
-		}
-	}
-	for _, entry := range entries {
-		relative, _ := safeRelative(entry.name)
-		target := filepath.Join(stage, relative)
-		if entry.mode.IsDir() {
-			if err = os.MkdirAll(target, 0755); err != nil {
-				return err
+			if err = result.add(name, entry.Mode(), entry.Open); err != nil {
+				reader.Close()
+				return nil, err
 			}
-			continue
 		}
-		if err = os.MkdirAll(filepath.Dir(target), 0755); err != nil {
+		return result.stripWrapper(), nil
+	case ".7z":
+		reader, err := sevenzip.OpenReader(path)
+		if err != nil {
+			return nil, err
+		}
+		result := &packageFiles{close: reader.Close}
+		for _, file := range reader.File {
+			if err = result.add(file.Name, file.Mode(), file.Open); err != nil {
+				reader.Close()
+				return nil, err
+			}
+		}
+		return result.stripWrapper(), nil
+	}
+	return nil, errors.New("只支持 .zip 和 .7z 安装包")
+}
+
+func openDirectoryPackage(root string) (*packageFiles, error) {
+	result := &packageFiles{close: func() error { return nil }}
+	err := filepath.WalkDir(root, func(path string, item fs.DirEntry, err error) error {
+		if err != nil {
 			return err
 		}
-		input, e := entry.open()
-		if e != nil {
-			return e
+		if path == root {
+			return nil
 		}
-		output, e := os.OpenFile(target, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0644)
-		if e != nil {
-			input.Close()
-			return e
+		if item.Type()&os.ModeSymlink != 0 {
+			return errors.New("更新来源包含符号链接，无法安全安装：" + path)
 		}
-		_, e = io.Copy(output, input)
-		input.Close()
-		closeErr := output.Close()
-		if e != nil {
-			return e
+		relative, err := filepath.Rel(root, path)
+		if err != nil {
+			return err
 		}
-		if closeErr != nil {
-			return closeErr
+		if item.IsDir() {
+			result.dirs = append(result.dirs, relative)
+			return nil
 		}
+		info, err := item.Info()
+		if err != nil {
+			return err
+		}
+		if !info.Mode().IsRegular() {
+			return errors.New("更新来源包含特殊文件：" + path)
+		}
+		target, mode := path, info.Mode().Perm()
+		result.files = append(result.files, packageFile{
+			relative: relative,
+			mode:     mode,
+			open:     func() (io.ReadCloser, error) { return os.Open(target) },
+		})
+		return nil
+	})
+	if err != nil {
+		return nil, err
 	}
-	top, err := os.ReadDir(stage)
+	return result.stripWrapper(), nil
+}
+
+func (p *packageFiles) add(name string, mode os.FileMode, open func() (io.ReadCloser, error)) error {
+	relative, err := safeRelative(name)
 	if err != nil {
 		return err
 	}
-	source := stage
-	if len(top) == 1 && top[0].IsDir() {
-		source = filepath.Join(stage, top[0].Name())
+	switch {
+	case mode.IsDir():
+		p.dirs = append(p.dirs, relative)
+	case mode.IsRegular():
+		p.files = append(p.files, packageFile{relative: relative, mode: 0644, open: open})
+	default:
+		return errors.New("安装包包含链接或特殊文件：" + name)
 	}
-	// copyTree rejects links in the extracted tree and copyFile rejects target links.
-	return copyTree(source, content)
+	return nil
+}
+
+// stripWrapper drops a single directory shared by every entry, matching the
+// common "Release/app.exe" layout; root-level files keep the archive as is.
+func (p *packageFiles) stripWrapper() *packageFiles {
+	if len(p.files) == 0 {
+		return p
+	}
+	first := ""
+	shares := func(relative string, allowRoot bool) bool {
+		parts := strings.Split(filepath.ToSlash(relative), "/")
+		if len(parts) == 1 && allowRoot {
+			return first == "" || parts[0] == first
+		}
+		if len(parts) < 2 {
+			return false
+		}
+		if first == "" {
+			first = parts[0]
+		}
+		return parts[0] == first
+	}
+	for _, relative := range p.dirs {
+		if !shares(relative, true) {
+			return p
+		}
+	}
+	for _, file := range p.files {
+		if !shares(file.relative, false) {
+			return p
+		}
+	}
+	if first == "" {
+		return p
+	}
+	result := &packageFiles{close: p.close}
+	for _, relative := range p.dirs {
+		if trimmed, err := safeRelative(strings.TrimPrefix(filepath.ToSlash(relative), first+"/")); err == nil {
+			result.dirs = append(result.dirs, trimmed)
+		}
+	}
+	for _, file := range p.files {
+		trimmed, err := safeRelative(strings.TrimPrefix(filepath.ToSlash(file.relative), first+"/"))
+		if err != nil {
+			return p
+		}
+		file.relative = trimmed
+		result.files = append(result.files, file)
+	}
+	return result
+}
+
+func (p *packageFiles) install(content string, emit func(string, int, int)) error {
+	for _, relative := range p.dirs {
+		if err := os.MkdirAll(filepath.Join(content, relative), 0755); err != nil {
+			return err
+		}
+	}
+	buffer := make([]byte, 256<<10)
+	total := len(p.files)
+	for index, file := range p.files {
+		target := filepath.Join(content, file.relative)
+		if info, err := os.Lstat(target); err == nil && !info.Mode().IsRegular() {
+			return errors.New("不能覆盖目录或链接：" + target)
+		}
+		if err := os.MkdirAll(filepath.Dir(target), 0755); err != nil {
+			return err
+		}
+		input, err := file.open()
+		if err != nil {
+			return err
+		}
+		output, err := os.OpenFile(target, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, file.mode)
+		if err != nil {
+			input.Close()
+			return err
+		}
+		_, err = io.CopyBuffer(output, input, buffer)
+		input.Close()
+		if closeErr := output.Close(); err == nil {
+			err = closeErr
+		}
+		if err != nil {
+			return err
+		}
+		if emit != nil && (index%16 == 0 || index == total-1) {
+			emit("install", index+1, total)
+		}
+	}
+	return nil
+}
+
+// unpack installs a package into an empty content directory (new applications).
+func unpack(packagePath, content string) error {
+	info, err := os.Stat(packagePath)
+	if err != nil {
+		return err
+	}
+	pkg, err := openPackage(packagePath, info)
+	if err != nil {
+		return err
+	}
+	defer pkg.close()
+	return pkg.install(content, nil)
 }

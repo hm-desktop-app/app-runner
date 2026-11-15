@@ -107,11 +107,19 @@ func (s *LauncherService) Update(id, source string) (*launcher.UpdateResult, err
 		return nil, errors.New("正在部署或安装更新，请稍候")
 	}
 	defer s.updating.Store(false)
-	result, err := s.store.Update(id, source)
+	result, err := s.store.Update(id, source, s.updateProgress)
 	if err != nil {
 		return nil, err
 	}
 	return &result, nil
+}
+
+// updateProgress forwards installation progress so the busy indicator can show
+// the current stage instead of an indefinite spinner.
+func (s *LauncherService) updateProgress(progress launcher.UpdateProgress) {
+	if s.window != nil {
+		s.window.EmitEvent("app-runner:update-progress", progress)
+	}
 }
 func (s *LauncherService) DeleteBackup(id string) error {
 	if !s.updating.CompareAndSwap(false, true) {

@@ -134,7 +134,7 @@ function linksHTML(): string {
 }
 function updateHTML(ctx: SheetContext): string {
  const updaters = draft!.updater;
- const hint = '<p class="hint">操作按顺序执行；每次安装前自动完整备份至 content.bak。<br>固定文件/目录：清空时保留指定相对路径；清空目录：删除未固定的内容；解包安装包：把 ZIP / 7z 或目录内容安装到 content。</p>';
+ const hint = '<p class="hint">操作按顺序执行；清空目录时原有内容移入 content.bak，固定路径保持不动；覆盖安装只备份将被覆盖的文件。<br>固定文件/目录：清空时保留指定相对路径；清空目录：删除未固定的内容；解包安装包：把 ZIP / 7z 或目录内容安装到 content。</p>';
  if (!updaters.length) {
   return '<button type="button" class="list-add wide" id="add-updater">' + icons.plus + '<b>添加更新操作</b><span>安装更新包时按顺序执行</span></button>' + hint;
  }

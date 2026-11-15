@@ -199,7 +199,7 @@ function renderPeek(items: Item[] = commandItems()): void {
   + '<p class="peek-desc">' + (app.description ? escape(app.description) : '<span class="faint">还没有备注</span>') + '</p>'
   + linksBlock
   + update
-  + '<div class="peek-meta"><div class="peek-row"><span>启动入口</span><span class="mono">' + escape(app.entry || '未填写') + '</span></div><div class="peek-row"><span>上次使用</span><span>' + escape(relativeTime(app.lastUsed)) + '</span></div><div class="peek-row"><span>更新时间</span><span>' + escape(app.modified ? new Date(app.modified).toLocaleDateString('zh-CN') : '未知') + '</span></div><div class="peek-row"><span>所在目录</span><span class="mono" title="' + escape(app.directory) + '">' + escape(app.directory.split(/[\\/]/).pop() || '') + '</span></div></div>'
+  + '<div class="peek-meta"><div class="peek-row"><span>启动入口</span><span class="mono">' + escape(app.entry || '未填写') + '</span></div><div class="peek-row"><span>版本</span><span class="mono">' + escape(app.version || '未知') + '</span></div><div class="peek-row"><span>上次使用</span><span>' + escape(relativeTime(app.lastUsed)) + '</span></div><div class="peek-row"><span>更新时间</span><span>' + escape(app.modified ? new Date(app.modified).toLocaleDateString('zh-CN') : '未知') + '</span></div><div class="peek-row"><span>所在目录</span><span class="mono" title="' + escape(app.directory) + '">' + escape(app.directory.split(/[\\/]/).pop() || '') + '</span></div></div>'
   + '<div class="peek-actions"><button type="button" class="btn primary" data-run="' + escape(app.uuid) + '"' + (runnable ? '' : ' disabled') + '>' + icons.play + '运行</button><div class="btn-row"><button type="button" class="btn" data-edit="' + escape(app.uuid) + '">' + icons.edit + '编辑</button><button type="button" class="btn" data-dir="' + escape(app.uuid) + '">' + icons.folder + '目录</button></div></div>'
   + '<div class="peek-hint">↵ 运行 · E 编辑 · Esc 清空搜索</div>';
  bindPeekActions();
@@ -637,6 +637,16 @@ window.addEventListener('blur', scheduleAutoHide);
 window.addEventListener('focus', () => window.clearTimeout(blurTimer));
 /* WebView2 的 DOM blur 偶尔会和原生激活状态失步，Go 侧在窗口失去激活时补发这条事件 */
 Events.On('app-runner:window-lost-focus', scheduleAutoHide);
+
+/* 安装更新时展示当前阶段与文件进度，避免只看到不确定的转圈 */
+const updateStages: Record<string, string> = {cleanup: '正在清理旧备份', backup: '正在准备备份', install: '正在安装文件'};
+Events.On('app-runner:update-progress', event => {
+ if (!busy) return;
+ const data = (event.data || {}) as {stage?: string; done?: number; total?: number};
+ const label = updateStages[data.stage || ''] || '正在安装更新';
+ const done = typeof data.done === 'number' ? data.done : 0, total = typeof data.total === 'number' ? data.total : 0;
+ $('#activity-text').textContent = total > 0 ? label + ' ' + done.toLocaleString('zh-CN') + ' / ' + total.toLocaleString('zh-CN') + '…' : label + '…';
+});
 
 $('#new-app').onclick = () => detail.openCreate(sheetCtx);
 $('#lib-back').onclick = () => {commandQuery = '';$<HTMLInputElement>('#cmd-search').value = '';setMode('command');};
