@@ -35,11 +35,17 @@ export const shell = reactive({
 let libraryKey = '';
 let toastTimer = 0;
 let tableTimer = 0;
-let updateID = '';
 let draggedID = '';
-let pendingCategoryApp = '';
 let categoryCreated: ((name?: string) => void) | null = null;
-let editingCategory = '';
+
+export type SourceKind = 'archive' | 'directory';
+export const overlays = reactive({
+ toast: {message: '', visible: false},
+ activity: '',
+ category: {open: false, appID: '', message: '', name: '', error: '', saving: false},
+ group: {open: false, original: '', summary: '', name: '', error: '', saving: false},
+ update: {open: false, appID: '', title: '', kind: 'archive' as SourceKind, source: '', error: '', installed: false, picking: false},
+});
 
 /* ---------- preferences ---------- */
 function loadPreferences(): void {
@@ -94,32 +100,13 @@ export function clearSearch(): void {
 }
 export function setBusy(value: boolean, text = ''): void {
  shell.busy = value;
- const activity = $('#activity');
- if (!activity) return;
- $('#activity-text').textContent = text;
- if (value && !activity.matches(':popover-open')) activity.showPopover();
- else if (!value && activity.matches(':popover-open')) activity.hidePopover();
- setDialogBusy(value);
-}
-function setDialogBusy(value: boolean): void {
- for (const dialog of Array.from(document.querySelectorAll<HTMLDialogElement>(value ? 'dialog[open]' : 'dialog'))) {
-  for (const control of Array.from(dialog.querySelectorAll<HTMLInputElement | HTMLButtonElement | HTMLSelectElement | HTMLTextAreaElement>('input, select, textarea, button'))) {
-   if (value) {
-    if (!control.disabled) {control.dataset.busyDisabled = '1';control.disabled = true;}
-   } else if (control.dataset.busyDisabled) {
-    delete control.dataset.busyDisabled;
-    control.disabled = false;
-   }
-  }
- }
+ overlays.activity = value ? text : '';
 }
 export function showToast(message: string): void {
- const toast = $('#toast');
- if (!toast) return;
- toast.innerHTML = icons.check + '<span>' + escape(message) + '</span>';
- toast.classList.add('show');
+ overlays.toast.message = message;
+ overlays.toast.visible = true;
  clearTimeout(toastTimer);
- toastTimer = window.setTimeout(() => toast.classList.remove('show'), 2100);
+ toastTimer = window.setTimeout(() => {overlays.toast.visible = false;}, 2100);
 }
 async function perform<T>(action: () => PromiseLike<T>): Promise<T | undefined> {
  try {return await action();} catch (error) {await API.ShowError(error instanceof Error ? error.message : String(error)).catch(console.error);return undefined;}
@@ -288,43 +275,57 @@ const sheetCtx: SheetContext = {
  openUpdate: id => openUpdateDialog(id),
 };
 
-/* ---------- category dialogs ---------- */
+/* ---------- overlays ---------- */
+const errorText = (error: unknown): string => error instanceof Error ? error.message : String(error);
+
 export function openCategoryDialog(id = '', onCreated?: (name?: string) => void): void {
  if (shell.busy) {onCreated?.(undefined);return;}
- pendingCategoryApp = id;
  categoryCreated = onCreated || null;
- const message = $<HTMLElement>('#category-dialog-message');
- if (message) message.textContent = id ? '将“' + (currentApp(id)?.title || '') + '”移入新分类' : '创建后可以在编辑面板里给应用指定分类';
- const error = $<HTMLElement>('#category-dialog-error');
- if (error) error.textContent = '';
- const input = $<HTMLInputElement>('#category-name');
- if (input) input.value = '';
- $<HTMLDialogElement>('#category-dialog')?.showModal();
- input?.focus();
+ overlays.category = {open: true, appID: id, message: id ? '将“' + (currentApp(id)?.title || '') + '”移入新分类' : '创建后可以在编辑面板里给应用指定分类', name: '', error: '', saving: false};
 }
+export function closeCategoryDialog(): void {overlays.category.open = false;}
+export function categoryDialogClosed(): void {
+ const done = categoryCreated;
+ categoryCreated = null;
+ overlays.category.open = false;
+ done?.();
+}
+export async function submitCategory(): Promise<void> {
+ const state = overlays.category;
+ if (state.saving) return;
+ const name = state.name.trim();
+ if (!name || name === '未分类' || /[\r\n\0]/.test(name)) {state.error = '请输入有效的分类名称；留空分类的应用会归入“未分类”';return;}
+ state.saving = true;
+ state.error = '';
+ try {
+  if (state.appID && !await changeCategory(state.appID, name)) {state.error = '分类保存失败，请检查应用配置是否可写';return;}
+  if (!shell.extraCategories.includes(name)) shell.extraCategories.push(name);
+  saveCategories();
+  const done = categoryCreated;
+  categoryCreated = null;
+  state.open = false;
+  done?.(name);
+ } finally {
+  state.saving = false;
+ }
+}
+
 export function openGroupEditor(name: string): void {
  if (!name || shell.busy) return;
- editingCategory = name;
- const input = $<HTMLInputElement>('#group-edit-name');
- if (input) input.value = name;
- const summary = $<HTMLElement>('#group-edit-summary');
- if (summary) summary.textContent = '“' + name + '”包含 ' + shell.apps.filter(app => categoryOf(app) === name).length + ' 个应用';
- const error = $<HTMLElement>('#group-edit-error');
- if (error) error.textContent = '';
- $<HTMLDialogElement>('#group-edit-dialog')?.showModal();
- input?.focus();
- input?.select();
+ overlays.group = {open: true, original: name, summary: '“' + name + '”包含 ' + shell.apps.filter(app => categoryOf(app) === name).length + ' 个应用', name, error: '', saving: false};
 }
-async function updateGroup(remove: boolean): Promise<void> {
- if (shell.busy || !editingCategory) return;
- const oldName = editingCategory;
- const name = $<HTMLInputElement>('#group-edit-name')?.value.trim() || '';
- const errorBox = $<HTMLElement>('#group-edit-error');
+export function closeGroupDialog(): void {overlays.group.open = false;}
+export async function submitGroup(remove: boolean): Promise<void> {
+ const state = overlays.group;
+ const oldName = state.original;
+ if (shell.busy || !state.open || !oldName) return;
+ const name = state.name.trim();
  if (!remove) {
-  if (!name || name === '未分类' || /[\r\n\0]/.test(name)) {if (errorBox) errorBox.textContent = '请输入有效的分类名称';return;}
-  if (name === oldName) {$<HTMLDialogElement>('#group-edit-dialog')?.close();return;}
-  if (categoryNames().includes(name)) {if (errorBox) errorBox.textContent = '分类名称已存在，请使用其他名称';return;}
+  if (!name || name === '未分类' || /[\r\n\0]/.test(name)) {state.error = '请输入有效的分类名称';return;}
+  if (name === oldName) {state.open = false;return;}
+  if (categoryNames().includes(name)) {state.error = '分类名称已存在，请使用其他名称';return;}
  }
+ state.saving = true;
  setBusy(true, remove ? '正在删除分类…' : '正在重命名分类…');
  try {
   const changed = (remove ? await API.DeleteCategory(oldName) : await API.RenameCategory(oldName, name)) as App[];
@@ -333,54 +334,63 @@ async function updateGroup(remove: boolean): Promise<void> {
   if (!remove && !shell.extraCategories.includes(name)) shell.extraCategories.push(name);
   if (shell.filter.kind === 'category' && shell.filter.name === oldName) shell.filter = remove ? {kind: 'all'} : {kind: 'category', name};
   saveCategories();
-  $<HTMLDialogElement>('#group-edit-dialog')?.close();
+  state.open = false;
  } catch (error) {
-  if (errorBox) errorBox.textContent = error instanceof Error ? error.message : String(error);
+  state.error = errorText(error);
  } finally {
+  state.saving = false;
   setBusy(false);
  }
 }
 
-/* ---------- update dialogs ---------- */
 export function openUpdateDialog(id: string): void {
  const app = currentApp(id);
  if (!app || shell.busy || !app.updater.length) return;
- updateID = id;
- const kind = $<HTMLSelectElement>('#update-kind');
- if (kind) kind.value = 'archive';
- const source = $<HTMLInputElement>('#update-source');
- if (source) source.value = '';
- const title = $<HTMLElement>('#update-source-title');
- if (title) title.textContent = '更新“' + app.title + '”';
- const error = $<HTMLElement>('#update-source-error');
- if (error) error.textContent = '';
- const fields = $<HTMLElement>('#update-source-fields');
- if (fields) fields.hidden = false;
- const actions = $<HTMLElement>('#update-source-actions');
- if (actions) actions.hidden = false;
- const result = $<HTMLElement>('#update-result-actions');
- if (result) result.hidden = true;
- $<HTMLDialogElement>('#update-source-dialog')?.showModal();
+ overlays.update = {open: true, appID: id, title: '更新“' + app.title + '”', kind: 'archive', source: '', error: '', installed: false, picking: false};
 }
-async function installUpdate(source: string): Promise<void> {
+export function closeUpdateDialog(): void {overlays.update.open = false;}
+export async function browseUpdateSource(): Promise<void> {
+ const state = overlays.update;
+ if (state.picking || shell.busy) return;
+ state.picking = true;
+ try {
+  const picked = await API.PickSource(state.kind);
+  if (picked) state.source = picked;
+ } catch (error) {
+  state.error = errorText(error);
+ } finally {
+  state.picking = false;
+ }
+}
+export async function submitUpdate(): Promise<void> {
+ const state = overlays.update;
  if (shell.busy || shell.loading) return;
+ const source = state.source.trim();
+ if (!source) {state.error = '请选择更新目录或压缩包';return;}
+ state.error = '';
  setBusy(true, '正在安装更新，请稍候…');
  try {
-  const result = await API.Update(updateID, source);
+  const result = await API.Update(state.appID, source);
   if (result) {
    replaceApp(result.app as App);
-   const title = $<HTMLElement>('#update-source-title');
-   if (title) title.textContent = '更新完成。备份保存在：' + result.backup;
-   const fields = $<HTMLElement>('#update-source-fields');
-   if (fields) fields.hidden = true;
-   const actions = $<HTMLElement>('#update-source-actions');
-   if (actions) actions.hidden = true;
-   const resultActions = $<HTMLElement>('#update-result-actions');
-   if (resultActions) resultActions.hidden = false;
+   state.title = '更新完成。备份保存在：' + result.backup;
+   state.installed = true;
   }
  } catch (error) {
-  const box = $<HTMLElement>('#update-source-error');
-  if (box) box.textContent = error instanceof Error ? error.message : String(error);
+  state.error = errorText(error);
+ } finally {
+  setBusy(false);
+ }
+}
+export async function deleteUpdateBackup(): Promise<void> {
+ const state = overlays.update;
+ if (shell.busy) return;
+ setBusy(true, '正在删除备份…');
+ try {
+  await API.DeleteBackup(state.appID);
+  state.open = false;
+ } catch (error) {
+  state.error = errorText(error);
  } finally {
   setBusy(false);
  }
@@ -403,79 +413,6 @@ export function start(): void {
  setTheme(shell.theme);
  commandItems();
 
- $('#category-cancel')?.addEventListener('click', () => $<HTMLDialogElement>('#category-dialog')?.close());
- $<HTMLDialogElement>('#category-dialog')?.addEventListener('close', () => {const created = categoryCreated;categoryCreated = null;created?.();});
- $<HTMLFormElement>('#category-form')?.addEventListener('submit', event => {
-  event.preventDefault();
-  const name = $<HTMLInputElement>('#category-name')?.value.trim() || '';
-  const errorBox = $<HTMLElement>('#category-dialog-error');
-  if (!name || name === '未分类' || /[\r\n\0]/.test(name)) {if (errorBox) errorBox.textContent = '请输入有效的分类名称；留空分类的应用会归入“未分类”';return;}
-  const button = $<HTMLButtonElement>('#category-create');
-  if (button) button.disabled = true;
-  void (async () => {
-   try {
-    if (pendingCategoryApp && !await changeCategory(pendingCategoryApp, name)) {if (errorBox) errorBox.textContent = '分类保存失败，请检查应用配置是否可写';return;}
-    if (!shell.extraCategories.includes(name)) shell.extraCategories.push(name);
-    saveCategories();
-    const created = categoryCreated;categoryCreated = null;created?.(name);
-    $<HTMLDialogElement>('#category-dialog')?.close();
-   } finally {
-    if (button) button.disabled = false;
-   }
-  })();
- });
-
- $<HTMLFormElement>('#group-edit-form')?.addEventListener('submit', event => {event.preventDefault();void updateGroup(false);});
- $('#group-delete')?.addEventListener('click', () => void updateGroup(true));
- $('#group-edit-cancel')?.addEventListener('click', () => $<HTMLDialogElement>('#group-edit-dialog')?.close());
-
- $('#update-browse')?.addEventListener('click', () => {
-  const button = $<HTMLButtonElement>('#update-browse');
-  if (button) button.disabled = true;
-  void (async () => {
-   try {
-    const kind = $<HTMLSelectElement>('#update-kind')?.value || 'archive';
-    const picked = await API.PickSource(kind);
-    const source = $<HTMLInputElement>('#update-source');
-    if (picked && source) source.value = picked;
-   } catch (error) {
-    const box = $<HTMLElement>('#update-source-error');
-    if (box) box.textContent = error instanceof Error ? error.message : String(error);
-   } finally {
-    if (button) button.disabled = false;
-   }
-  })();
- });
- $('#update-source-cancel')?.addEventListener('click', () => $<HTMLDialogElement>('#update-source-dialog')?.close());
- $('#update-keep-backup')?.addEventListener('click', () => $<HTMLDialogElement>('#update-source-dialog')?.close());
- $<HTMLFormElement>('#update-source-form')?.addEventListener('submit', event => {
-  event.preventDefault();
-  const source = $<HTMLInputElement>('#update-source')?.value.trim() || '';
-  const errorBox = $<HTMLElement>('#update-source-error');
-  if (!source) {if (errorBox) errorBox.textContent = '请选择更新目录或压缩包';return;}
-  if (errorBox) errorBox.textContent = '';
-  void installUpdate(source);
- });
- $('#update-delete-backup')?.addEventListener('click', () => {
-  if (shell.busy) return;
-  setBusy(true, '正在删除备份…');
-  void (async () => {
-   try {
-    await API.DeleteBackup(updateID);
-    $<HTMLDialogElement>('#update-source-dialog')?.close();
-   } catch (error) {
-    const box = $<HTMLElement>('#update-source-error');
-    if (box) box.textContent = error instanceof Error ? error.message : String(error);
-   } finally {
-    setBusy(false);
-   }
-  })();
- });
-
- for (const dialog of Array.from(document.querySelectorAll<HTMLDialogElement>('dialog'))) {
-  dialog.addEventListener('cancel', event => {if (shell.busy) event.preventDefault();});
- }
-
  window.addEventListener('blur', scheduleAutoHide);
  window.addEventListener('focus', () => window.clearTimeout(blurTimer));
  Events.On('app-runner:window-lost-focus', scheduleAutoHide);
@@ -484,8 +421,7 @@ export function start(): void {
   const data = (event.data || {}) as {stage?: string; done?: number; total?: number};
   const label = updateStages[data.stage || ''] || '正在安装更新';
   const done = typeof data.done === 'number' ? data.done : 0, total = typeof data.total === 'number' ? data.total : 0;
-  const text = $('#activity-text');
-  if (text) text.textContent = total > 0 ? label + ' ' + done.toLocaleString('zh-CN') + ' / ' + total.toLocaleString('zh-CN') + '…' : label + '…';
+  overlays.activity = total > 0 ? label + ' ' + done.toLocaleString('zh-CN') + ' / ' + total.toLocaleString('zh-CN') + '…' : label + '…';
  });
 
  document.addEventListener('keydown', event => {

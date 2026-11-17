@@ -1,21 +1,6 @@
-<!doctype html>
-<html lang="zh-CN">
-<head>
- <meta charset="UTF-8">
- <meta name="viewport" content="width=device-width, initial-scale=1.0">
- <title>App Runner</title>
- <link rel="icon" href="/appicon.png">
-</head>
 <body>
 <div id="app"></div>
 <div id="sheet-root"></div>
-
-<div class="toast" id="toast" role="status" aria-live="polite"></div>
-<div class="activity" id="activity" role="status" popover="manual"><span class="spinner" aria-hidden="true"></span><span id="activity-text"></span></div>
-
-<dialog id="category-dialog"><form id="category-form"><h2>新建分类</h2><p id="category-dialog-message"></p><label for="category-name">分类名称</label><input id="category-name" autocomplete="off" placeholder="如：开发工具"><p id="category-dialog-error" role="alert"></p><div class="dialog-actions"><button id="category-cancel" type="button">取消</button><button id="category-create" type="submit" class="primary">创建分类</button></div></form></dialog>
-<dialog id="group-edit-dialog"><form id="group-edit-form"><h2>编辑分类</h2><p id="group-edit-summary"></p><label for="group-edit-name">分类名称</label><input id="group-edit-name" autocomplete="off"><p id="group-edit-error" role="alert"></p><p class="dialog-hint">删除分类后，组内应用会移至“未分类”。</p><div class="dialog-actions"><button id="group-delete" type="button" class="danger-button">删除分类</button><button id="group-edit-cancel" type="button">取消</button><button id="group-rename" type="submit" class="primary">重命名</button></div></form></dialog>
-<dialog id="update-source-dialog" class="source-dialog"><form id="update-source-form"><h2>安装更新</h2><p id="update-source-title"></p><div id="update-source-fields"><label>来源类型<select id="update-kind"><option value="archive">压缩包（ZIP / 7z）</option><option value="directory">目录</option></select></label><label>更新来源<div class="source-path"><input id="update-source" placeholder="选择来源，或粘贴完整路径" autocomplete="off"><button id="update-browse" type="button">选择…</button></div></label><small>按已保存的更新步骤安装，开始前把原有内容移入 content.bak。</small></div><p id="update-source-error" role="alert"></p><div class="dialog-actions" id="update-source-actions"><button id="update-source-cancel" type="button">取消</button><button id="update-install" type="submit" class="primary">安装更新</button></div><div class="dialog-actions" id="update-result-actions" hidden><button id="update-delete-backup" type="button">删除备份</button><button id="update-keep-backup" type="button" class="primary">保留备份并关闭</button></div></form></dialog>
 
 <script type="module" src="/src/main.ts"></script>
 </body>
