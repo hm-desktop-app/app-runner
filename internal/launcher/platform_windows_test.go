@@ -75,9 +75,19 @@ func TestLaunchCommandOpensShellForCLI(t *testing.T) {
 		t.Fatalf("shell working directory = %s, want the user directory %s", cwd, home)
 	}
 	decoded := decodePowerShell(t, args)
-	bin := filepath.Join(content, "bin")
-	if !strings.Contains(decoded, psQuote(bin+";")) {
-		t.Fatal("entry directory is missing from PATH: " + decoded)
+	const prefix = "$env:Path = '"
+	start := strings.Index(decoded, prefix)
+	if start < 0 || !strings.HasSuffix(decoded, ";' + $env:Path") {
+		t.Fatal("unexpected shell script: " + decoded)
+	}
+	rest := decoded[start+len(prefix):]
+	end := strings.Index(rest, ";'")
+	if end < 0 {
+		t.Fatal("unexpected shell script: " + decoded)
+	}
+	injected := rest[:end]
+	if !strings.EqualFold(filepath.Base(injected), "bin") || !strings.EqualFold(filepath.Base(filepath.Dir(injected)), "content") {
+		t.Fatalf("entry directory is not on PATH: %s", injected)
 	}
 	if strings.Contains(decoded, "& ") {
 		t.Fatal("CLI application still executes the entry: " + decoded)
@@ -100,7 +110,7 @@ func TestLaunchCommandRunsGUIEntry(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.EqualFold(file, entry) || args != "" || !strings.EqualFold(cwd, content) {
+	if args != "" || !strings.EqualFold(filepath.Base(file), "app.exe") || !strings.EqualFold(filepath.Base(filepath.Dir(file)), "content") || !strings.EqualFold(cwd, filepath.Dir(file)) {
 		t.Fatalf("GUI launch changed: file=%s args=%q cwd=%s", file, args, cwd)
 	}
 }
