@@ -1,6 +1,6 @@
 # App Runner
 
-Windows 本地应用启动器，Go + Wails v3 实现。单实例常驻托盘，按 `Ctrl+Alt+Space` 唤出命令中心；应用以目录加 `app.toml` 描述，按分类浏览、启动与更新。窗口 920×640，无系统标题栏。
+Windows 本地应用启动器，Go + Wails v3 后端，前端 Vue 3 + Vite。单实例常驻托盘，按 `Ctrl+Alt+Space` 唤出命令中心；应用以目录加 `app.toml` 描述，按分类浏览、启动与更新。窗口 920×640，无系统标题栏。
 
 ![命令中心](docs/command-center.png)
 
@@ -156,7 +156,8 @@ main.go                       入口、窗口、托盘、单实例、自检
 launcherservice.go            Wails 服务、原生对话框与文件选择
 internal/launcher/            扫描、配置、启动、使用记录、更新
 frontend/src/main.ts          应用库与命令中心
-frontend/src/detail.ts        编辑、新建与设置面板
+frontend/src/sheet.ts         编辑、新建与设置面板的 Vue 挂载入口
+frontend/src/sheet/           面板状态与 Vue 组件
 frontend/src/state.ts         筛选、排序、草稿与校验
 frontend/src/style.css        界面样式
 frontend/bindings/            Wails 生成的类型绑定

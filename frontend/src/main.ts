@@ -4,8 +4,8 @@ import * as API from '../bindings/app-runner/launcherservice';
 import {visibleApps, rankApps, recentApps, filterLibrary, filterKey, parseFilter, groupApps, categoryOf, relativeTime, statusOf, suggestsUpdate} from './state';
 import type {App, LibraryFilter, SortMode} from './state';
 import {$, $$, escape, icons, tile, statusName, iconFailed} from './ui';
-import * as detail from './detail';
-import type {SettingsInfo, Theme} from './detail';
+import * as detail from './sheet';
+import type {SettingsInfo, Theme} from './sheet';
 
 type Mode = 'command' | 'library';
 interface Command {id: string; name: string; sub: string; note: string; key: string; icon: string; run: () => void}
@@ -650,8 +650,6 @@ Events.On('app-runner:update-progress', event => {
 
 $('#new-app').onclick = () => detail.openCreate(sheetCtx);
 $('#lib-back').onclick = () => {commandQuery = '';$<HTMLInputElement>('#cmd-search').value = '';setMode('command');};
-$('#sheet-scrim').onclick = () => void detail.requestClose(sheetCtx);
-$('#sheet-close').onclick = () => void detail.requestClose(sheetCtx);
 
 $<HTMLInputElement>('#cmd-search').oninput = event => {
  commandQuery = (event.target as HTMLInputElement).value;
