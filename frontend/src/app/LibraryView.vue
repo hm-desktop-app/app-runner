@@ -1,8 +1,15 @@
 <script setup lang="ts">
 import { computed } from 'vue';
+import { categoryOf, relativeTime, statusOf } from '../state';
+import type { App, SortMode } from '../state';
+import { openCreate, openEdit } from '../sheet/state';
+import { icons, statusName } from '../ui';
+import Tile from '../Tile.vue';
+import { launch, openDirectory, setSort } from './actions';
+import { openCategoryDialog, openGroupEditor, openUpdateDialog } from './dialogs';
 import {
-    categoryOf,
     categoryTone,
+    drag,
     dragLeaveCategory,
     dragOverCategory,
     dropOnCategory,
@@ -10,29 +17,12 @@ import {
     endDrag,
     filterRows,
     goBack,
-    hideWindow,
-    icons,
-    launch,
     libraryRows,
-    openCategoryDialog,
-    openCreate,
-    openDirectory,
-    openEdit,
-    openGroupEditor,
-    openUpdateDialog,
-    relativeTime,
     selectApp,
     selectFilter,
-    setSort,
-    shell,
-    startDrag,
-    statusName,
-    statusOf,
-    suggestedCount
-} from './store';
-import Tile from '../Tile.vue';
-import type { App } from '../state';
-import type { SortMode } from '../state';
+    startDrag
+} from './library';
+import { hideWindow, registerSearchInput, shell, suggestedCount } from './shell';
 
 const backIcon =
     '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m14 6-6 6 6 6"/></svg>';
@@ -43,6 +33,9 @@ const selectedStatus = computed(() => (selected.value ? statusName(statusOf(sele
 const selectedRunnable = computed(() => !!selected.value && selected.value.entryValid && ['GUI', 'CLI'].includes(selected.value.type));
 const countText = computed(() => rows.value.length + ' 个应用' + (shell.libraryQuery.trim() ? ' · “' + shell.libraryQuery.trim() + '”' : ''));
 
+function bindSearch(element: unknown): void {
+    registerSearchInput('library', element as HTMLInputElement | null);
+}
 function typeText(app: App): string {
     return (app.type === 'GUI' ? '图形应用' : app.type === 'CLI' ? '命令行应用' : '待配置') + (app.version ? ' · ' + app.version : '');
 }
@@ -56,18 +49,17 @@ function dragStart(event: DragEvent, id: string): void {
     event.dataTransfer?.setData('text/plain', id);
     if (event.dataTransfer) event.dataTransfer.effectAllowed = 'move';
 }
-function dragOver(event: DragEvent): void {
-    dragOverCategory(event, event.currentTarget as HTMLElement);
+function dragOver(event: DragEvent, key: string): void {
+    dragOverCategory(event, key);
 }
-function dragLeave(event: DragEvent): void {
-    dragLeaveCategory(event.currentTarget as HTMLElement);
+function dragLeave(key: string): void {
+    dragLeaveCategory(key);
 }
-function dropCategory(event: DragEvent): void {
-    const element = event.currentTarget as HTMLElement;
-    void dropOnCategory(event, element.dataset.filter!.slice('category:'.length), element);
+function dropCategory(event: DragEvent, name: string): void {
+    void dropOnCategory(event, name);
 }
 function dropNewCategory(event: DragEvent): void {
-    void dropOnNewCategory(event, event.currentTarget as HTMLElement);
+    void dropOnNewCategory(event);
 }
 function onSortChange(event: Event): void {
     setSort((event.target as HTMLSelectElement).value as SortMode);
@@ -99,6 +91,7 @@ function openGroup(event: Event, name: string): void {
                 ><span aria-hidden="true" v-html="icons.search"></span
                 ><input
                     id="lib-search"
+                    :ref="bindSearch"
                     v-model="shell.libraryQuery"
                     placeholder="搜索名称、分类、备注或入口；支持拼音…"
                     autocomplete="off"
@@ -144,16 +137,16 @@ function openGroup(event: Event, name: string): void {
                         :key="row.key"
                         type="button"
                         class="filter-item"
-                        :class="{ active: row.tone === 'active' }"
+                        :class="{ active: row.tone === 'active', 'drop-target': drag.over === row.key }"
                         :data-filter="row.key"
                         :aria-pressed="row.tone === 'active'"
                         draggable="false"
-                        :title="'右键编辑或删除分类'"
+                        title="右键编辑或删除分类"
                         @click="selectFilter(row.key)"
                         @contextmenu="openGroup($event, row.label)"
-                        @dragover="dragOver"
-                        @dragleave="dragLeave"
-                        @drop="dropCategory">
+                        @dragover="dragOver($event, row.key)"
+                        @dragleave="dragLeave(row.key)"
+                        @drop="dropCategory($event, row.label)">
                         <i class="fdot" :style="'--c:' + categoryTone(row.label)"></i><span>{{ row.label }}</span
                         ><span class="count">{{ row.count }}</span>
                     </button>
@@ -161,9 +154,10 @@ function openGroup(event: Event, name: string): void {
                         id="new-category"
                         type="button"
                         class="filter-add"
+                        :class="{ 'drop-target': drag.over === 'new' }"
                         @click="openCategoryDialog()"
-                        @dragover="dragOver"
-                        @dragleave="dragLeave"
+                        @dragover="dragOver($event, 'new')"
+                        @dragleave="dragLeave('new')"
                         @drop="dropNewCategory">
                         <span v-html="icons.plus"></span>新建分类
                     </button>

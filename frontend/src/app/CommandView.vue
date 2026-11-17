@@ -1,27 +1,14 @@
 <script setup lang="ts">
 import { computed } from 'vue';
-import {
-    commandGroups,
-    categoryOf,
-    execute,
-    hideWindow,
-    hoverCommand,
-    icons,
-    launch,
-    openDirectory,
-    openEdit,
-    openLinkUrl,
-    openUpdateDialog,
-    peekItem,
-    relativeTime,
-    shell,
-    statusName,
-    statusOf,
-    suggestedCount
-} from './store';
+import { categoryOf, relativeTime, statusOf, suggestsUpdate } from '../state';
+import { openEdit } from '../sheet/state';
+import { icons, statusName } from '../ui';
 import Tile from '../Tile.vue';
-import { suggestsUpdate } from '../state';
-import type { AppItem, Item } from './store';
+import { launch, openDirectory, openLinkUrl } from './actions';
+import { commandGroups, execute, hoverCommand, peekItem } from './commands';
+import type { AppItem, Item } from './commands';
+import { openUpdateDialog } from './dialogs';
+import { focusSearch, hideWindow, registerSearchInput, shell, suggestedCount } from './shell';
 
 function subText(app: AppItem['app']): string {
     const status = statusName(statusOf(app));
@@ -29,11 +16,14 @@ function subText(app: AppItem['app']): string {
     if (status.tone !== 'ok') text += ' · ' + status.label;
     return text;
 }
+function bindSearch(element: unknown): void {
+    registerSearchInput('command', element as HTMLInputElement | null);
+}
 function rowClick(item: Item): void {
     if (item.kind === 'command') execute(item.key);
     else {
         hoverCommand(item.key);
-        document.getElementById('cmd-search')?.focus();
+        focusSearch(false);
     }
 }
 function rowDoubleClick(item: Item): void {
@@ -55,6 +45,7 @@ const peekModified = computed(() => {
             <span class="cmd-search-icon" aria-hidden="true" v-html="icons.search"></span>
             <input
                 id="cmd-search"
+                :ref="bindSearch"
                 v-model="shell.commandQuery"
                 placeholder="搜索名称、分类、备注或入口；支持拼音；输入 > 只看命令"
                 autocomplete="off"
