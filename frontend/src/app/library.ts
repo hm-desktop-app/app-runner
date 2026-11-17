@@ -1,7 +1,7 @@
 import { reactive } from 'vue';
 import { filterKey, filterLibrary, parseFilter } from '../state';
 import type { App, LibraryFilter } from '../state';
-import { icons } from '../ui';
+import type { IconName } from '../ui';
 import { openCategoryDialog } from './dialogs';
 import { changeCategory } from './actions';
 import { categoryNames, setMode, shell } from './shell';
@@ -9,7 +9,7 @@ import { categoryNames, setMode, shell } from './shell';
 export interface FilterRow {
     key: string;
     label: string;
-    icon: string;
+    icon?: IconName;
     count: number;
     category: boolean;
     tone?: string;
@@ -24,16 +24,16 @@ export function libraryRows(): App[] {
 export function filterRows(): { browsing: FilterRow[]; categories: FilterRow[] } {
     const active = filterKey(shell.filter);
     const count = (f: LibraryFilter): number => filterLibrary(shell.apps, f, '', 'name').length;
+    const browsing: FilterRow[] = [
+        { key: 'all', label: '全部应用', icon: 'grid', count: shell.apps.length, category: false },
+        { key: 'recent', label: '最近使用', icon: 'clock', count: count({ kind: 'recent' }), category: false },
+        { key: 'suggested', label: '建议更新', icon: 'update', count: count({ kind: 'suggested' }), category: false }
+    ];
     return {
-        browsing: [
-            { key: 'all', label: '全部应用', icon: icons.grid, count: shell.apps.length, category: false },
-            { key: 'recent', label: '最近使用', icon: icons.clock, count: count({ kind: 'recent' }), category: false },
-            { key: 'suggested', label: '建议更新', icon: icons.update, count: count({ kind: 'suggested' }), category: false }
-        ].map((row) => ({ ...row, tone: active === row.key ? 'active' : '' })),
+        browsing: browsing.map((row) => ({ ...row, tone: active === row.key ? 'active' : '' })),
         categories: categoryNames().map((name) => ({
             key: 'category:' + name,
             label: name,
-            icon: '',
             count: count({ kind: 'category', name }),
             category: true,
             tone: active === 'category:' + name ? 'active' : ''

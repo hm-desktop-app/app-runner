@@ -1,6 +1,6 @@
 <script setup lang="ts">
+import Icon from '../Icon.vue';
 import { ref, watch } from 'vue';
-import { icons } from '../ui';
 import * as dialogs from './dialogs';
 import { overlays, shell } from './shell';
 
@@ -53,7 +53,7 @@ watch(
 
 <template>
     <div id="toast" class="toast" :class="{ show: overlays.toast.visible }" role="status" aria-live="polite">
-        <i v-html="icons.check"></i><span>{{ overlays.toast.message }}</span>
+        <i><Icon name="check" /></i><span>{{ overlays.toast.message }}</span>
     </div>
     <div id="activity" ref="activity" class="activity" role="status" popover="manual">
         <span class="spinner" aria-hidden="true"></span><span id="activity-text">{{ overlays.activity }}</span>

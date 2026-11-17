@@ -63,6 +63,19 @@ export const state = reactive({
     settingsThemeDark: false
 });
 
+const fields = new Map<string, HTMLElement>();
+/** Register a panel input so actions can focus it without querying the DOM. */
+export function registerField(name: string, element: HTMLElement | null): void {
+    if (element) fields.set(name, element);
+    else fields.delete(name);
+}
+export function focusField(name: string, select = false): void {
+    const field = fields.get(name);
+    if (!(field instanceof HTMLInputElement || field instanceof HTMLTextAreaElement)) return;
+    field.focus({ preventScroll: true });
+    if (select) field.select();
+}
+
 let current: SheetContext | null = null;
 export const setContext = (value: SheetContext): void => {
     current = value;
@@ -121,13 +134,7 @@ export function openEdit(id: string): void {
     state.entryInvalid = false;
     state.entryHint = '';
     scheduleEntryCheck();
-    void nextTick(() => {
-        const field = document.getElementById('edit-title');
-        if (field instanceof HTMLInputElement) {
-            field.focus({ preventScroll: true });
-            field.select();
-        }
-    });
+    void nextTick(() => focusField('edit-title', true));
 }
 
 export function openCreate(): void {
@@ -140,7 +147,7 @@ export function openCreate(): void {
     state.pendingNew = null;
     state.newEntryValid = false;
     state.createError = '';
-    void nextTick(() => document.getElementById('create-source')?.focus({ preventScroll: true }));
+    void nextTick(() => focusField('create-source'));
 }
 
 export function openSettings(): void {
@@ -359,10 +366,7 @@ export async function chooseCategory(value: string): Promise<void> {
 export function addLink(): void {
     if (!state.draft) return;
     state.draft.relatedLinks.push({ title: '', url: '' });
-    void nextTick(() => {
-        const input = document.querySelector<HTMLInputElement>('#sheet-body [data-link="' + (state.draft!.relatedLinks.length - 1) + '"][data-key="title"]');
-        input?.focus();
-    });
+    void nextTick(() => focusField('link-title-' + (state.draft!.relatedLinks.length - 1)));
 }
 
 export function normalizeUrl(link: Link): void {

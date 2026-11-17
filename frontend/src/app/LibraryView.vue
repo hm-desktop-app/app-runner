@@ -1,9 +1,10 @@
 <script setup lang="ts">
+import Icon from '../Icon.vue';
 import { computed } from 'vue';
 import { categoryOf, relativeTime, statusOf } from '../state';
 import type { App, SortMode } from '../state';
 import { openCreate, openEdit } from '../sheet/state';
-import { icons, statusName } from '../ui';
+import { statusName } from '../ui';
 import Tile from '../Tile.vue';
 import { launch, openDirectory, setSort } from './actions';
 import { openCategoryDialog, openGroupEditor, openUpdateDialog } from './dialogs';
@@ -24,8 +25,6 @@ import {
 } from './library';
 import { hideWindow, registerSearchInput, shell, suggestedCount } from './shell';
 
-const backIcon =
-    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m14 6-6 6 6 6"/></svg>';
 const filters = computed(() => filterRows());
 const rows = computed(() => libraryRows());
 const selected = computed<App | undefined>(() => (shell.librarySelected ? shell.apps.find((app) => app.uuid === shell.librarySelected) : undefined));
@@ -81,14 +80,14 @@ function openGroup(event: Event, name: string): void {
     <section id="lib-view" class="view lib-view" :class="{ 'is-active': shell.mode === 'library' }" aria-label="应用库">
         <div class="lib-toolbar">
             <button id="lib-back" type="button" class="lib-back" title="返回命令中心 · Esc" aria-label="返回命令中心" @click="goBack">
-                <span v-html="backIcon"></span>
+                <span><Icon name="back" /></span>
             </button>
             <div class="lib-title">
                 <h2>应用库</h2>
                 <p id="lib-count">{{ countText }}</p>
             </div>
             <label class="lib-search"
-                ><span aria-hidden="true" v-html="icons.search"></span
+                ><span aria-hidden="true"><Icon name="search" /></span
                 ><input
                     id="lib-search"
                     :ref="bindSearch"
@@ -106,10 +105,10 @@ function openGroup(event: Event, name: string): void {
                     <option value="modified">更新时间</option>
                 </select>
                 <button id="new-app" type="button" class="btn primary" :disabled="shell.busy || shell.loading" @click="openCreate">
-                    <span v-html="icons.plus"></span>新建应用
+                    <span><Icon name="plus" /></span>新建应用
                 </button>
                 <button id="lib-close" type="button" class="win-close" title="收起窗口" aria-label="收起窗口" @click="hideWindow">
-                    <span v-html="icons.close"></span>
+                    <span><Icon name="close" /></span>
                 </button>
             </div>
         </div>
@@ -126,7 +125,7 @@ function openGroup(event: Event, name: string): void {
                         :data-filter="row.key"
                         :aria-pressed="row.tone === 'active'"
                         @click="selectFilter(row.key)">
-                        <span v-html="row.icon"></span><span>{{ row.label }}</span
+                        <span v-if="row.icon"><Icon :name="row.icon" /></span><span>{{ row.label }}</span
                         ><span class="count">{{ row.count }}</span>
                     </button>
                 </div>
@@ -159,7 +158,7 @@ function openGroup(event: Event, name: string): void {
                         @dragover="dragOver($event, 'new')"
                         @dragleave="dragLeave('new')"
                         @drop="dropNewCategory">
-                        <span v-html="icons.plus"></span>新建分类
+                        <span><Icon name="plus" /></span>新建分类
                     </button>
                 </div>
             </aside>
@@ -219,7 +218,7 @@ function openGroup(event: Event, name: string): void {
                                                 title="运行"
                                                 :aria-label="'运行 ' + app.title"
                                                 @click.stop="launch(app.uuid)">
-                                                <span v-html="icons.play"></span></button
+                                                <span><Icon name="play" /></span></button
                                             ><button
                                                 type="button"
                                                 data-act="edit"
@@ -227,7 +226,7 @@ function openGroup(event: Event, name: string): void {
                                                 title="编辑"
                                                 :aria-label="'编辑 ' + app.title"
                                                 @click.stop="openEdit(app.uuid)">
-                                                <span v-html="icons.edit"></span>
+                                                <span><Icon name="edit" /></span>
                                             </button>
                                         </div>
                                     </td>
@@ -249,14 +248,16 @@ function openGroup(event: Event, name: string): void {
                         </div>
                         <div class="sel-actions">
                             <button v-if="selected.updater.length" type="button" class="btn update" data-sel="update" @click="openUpdateDialog(selected.uuid)">
-                                <span v-html="icons.update"></span>更新
+                                <span><Icon name="update" /></span>更新
                             </button>
                             <button type="button" class="btn primary" data-sel="run" :disabled="!selectedRunnable" @click="launch(selected.uuid)">
-                                <span v-html="icons.play"></span>运行
+                                <span><Icon name="play" /></span>运行
                             </button>
-                            <button type="button" class="btn" data-sel="edit" @click="openEdit(selected.uuid)"><span v-html="icons.edit"></span>编辑</button>
+                            <button type="button" class="btn" data-sel="edit" @click="openEdit(selected.uuid)">
+                                <span><Icon name="edit" /></span>编辑
+                            </button>
                             <button type="button" class="btn" data-sel="dir" @click="openDirectory(selected.uuid)">
-                                <span v-html="icons.folder"></span>目录
+                                <span><Icon name="folder" /></span>目录
                             </button>
                         </div>
                     </template>

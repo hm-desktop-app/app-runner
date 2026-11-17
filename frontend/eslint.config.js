@@ -25,8 +25,6 @@ export default tseslint.config(
     {
         rules: {
             'vue/multi-word-component-names': 'off',
-            // Icons and tiles are internal SVG strings, not user content.
-            'vue/no-v-html': 'off',
             // localStorage probes deliberately ignore failures.
             'no-empty': ['error', { allowEmptyCatch: true }]
         }

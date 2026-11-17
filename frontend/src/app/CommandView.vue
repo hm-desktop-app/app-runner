@@ -1,8 +1,9 @@
 <script setup lang="ts">
+import Icon from '../Icon.vue';
 import { computed } from 'vue';
 import { categoryOf, relativeTime, statusOf, suggestsUpdate } from '../state';
 import { openEdit } from '../sheet/state';
-import { icons, statusName } from '../ui';
+import { statusName } from '../ui';
 import Tile from '../Tile.vue';
 import { launch, openDirectory, openLinkUrl } from './actions';
 import { commandGroups, execute, hoverCommand, peekItem } from './commands';
@@ -42,7 +43,7 @@ const peekModified = computed(() => {
 <template>
     <section id="cmd-view" class="view cmd-view" :class="{ 'is-active': shell.mode === 'command' }" aria-label="命令中心">
         <div class="cmd-search">
-            <span class="cmd-search-icon" aria-hidden="true" v-html="icons.search"></span>
+            <span class="cmd-search-icon" aria-hidden="true"><Icon name="search" /></span>
             <input
                 id="cmd-search"
                 :ref="bindSearch"
@@ -57,7 +58,7 @@ const peekModified = computed(() => {
                 @keydown.enter.prevent="shell.commandSelected && execute(shell.commandSelected)" />
             <kbd class="esc">Esc</kbd>
             <button id="cmd-close" type="button" class="win-close" title="收起窗口" aria-label="收起窗口" @click="hideWindow">
-                <span v-html="icons.close"></span>
+                <span><Icon name="close" /></span>
             </button>
         </div>
         <div class="cmd-body">
@@ -76,7 +77,7 @@ const peekModified = computed(() => {
                         @mouseenter="hoverCommand(item.key)"
                         @click="rowClick(item)"
                         @dblclick="rowDoubleClick(item)">
-                        <span v-if="item.kind === 'command'" class="cmd-icon" v-html="item.command.icon"></span>
+                        <span v-if="item.kind === 'command'" class="cmd-icon"><Icon :name="item.command.icon" /></span>
                         <span v-else class="result-tile"><Tile :app="item.app" /></span>
                         <span class="result-main">
                             <span class="result-name">{{ item.kind === 'command' ? item.command.name : item.app.title }}</span>
@@ -96,7 +97,7 @@ const peekModified = computed(() => {
             <aside id="cmd-peek" class="cmd-peek" aria-label="预览">
                 <template v-if="peek?.kind === 'command'">
                     <div class="peek-command">
-                        <span class="cmd-icon" v-html="peek.command.icon"></span>
+                        <span class="cmd-icon"><Icon :name="peek.command.icon" /></span>
                         <h2>{{ peek.command.name }}</h2>
                         <p>{{ peek.command.sub }}</p>
                         <div class="peek-note"><span class="peek-note-title">说明</span>{{ peek.command.note }}</div>
@@ -129,7 +130,7 @@ const peekModified = computed(() => {
                             class="peek-link"
                             :data-open-url="link.url"
                             @click="openLinkUrl(link.url)">
-                            <span>{{ link.title || link.url }}</span><i v-html="icons.external"></i>
+                            <span>{{ link.title || link.url }}</span><i><Icon name="external" /></i>
                         </button>
                     </div>
                     <button
@@ -138,7 +139,7 @@ const peekModified = computed(() => {
                         class="update-box"
                         :data-update="peek.app.uuid"
                         @click="openUpdateDialog(peek.app.uuid)">
-                        <span v-html="icons.update"></span><b>已配置更新方式</b><span>安装更新 ›</span>
+                        <span><Icon name="update" /></span><b>已配置更新方式</b><span>安装更新 ›</span>
                     </button>
                     <div class="peek-meta">
                         <div class="peek-row">
@@ -159,14 +160,14 @@ const peekModified = computed(() => {
                     </div>
                     <div class="peek-actions">
                         <button type="button" class="btn primary" :data-run="peek.app.uuid" :disabled="!peekRunnable" @click="launch(peek.app.uuid)">
-                            <span v-html="icons.play"></span>运行
+                            <span><Icon name="play" /></span>运行
                         </button>
                         <div class="btn-row">
                             <button type="button" class="btn" :data-edit="peek.app.uuid" @click="openEdit(peek.app.uuid)">
-                                <span v-html="icons.edit"></span>编辑
+                                <span><Icon name="edit" /></span>编辑
                             </button>
                             <button type="button" class="btn" :data-dir="peek.app.uuid" @click="openDirectory(peek.app.uuid)">
-                                <span v-html="icons.folder"></span>目录
+                                <span><Icon name="folder" /></span>目录
                             </button>
                         </div>
                     </div>

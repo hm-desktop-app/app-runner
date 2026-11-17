@@ -124,12 +124,14 @@ url = "https://example.com"
 ```powershell
 go test ./...
 go vet ./...
+npm --prefix frontend run lint
+npm --prefix frontend run format:check
 npm --prefix frontend test
 npm --prefix frontend run check
 wails3 build
 ```
 
-Go 测试覆盖扫描容错、暂存回收、UUID、只读配置、保存、最近使用、入口、更新时间、备份、PIN 边界、ZIP / 7z 和失败保留；前端测试覆盖筛选排序、关键字与拼音搜索、时间边界、草稿隔离与更新参数校验。
+Go 测试覆盖扫描容错、暂存回收、UUID、只读配置、保存、最近使用、入口、更新时间、备份、PIN 边界、ZIP / 7z 和失败保留；前端测试覆盖筛选排序、关键字与拼音搜索、时间边界、草稿隔离与更新参数校验。前端代码由 ESLint（JavaScript、TypeScript 与 Vue 规则）和 Prettier 统一检查，配置位于 `frontend/eslint.config.js` 与 `frontend/.prettierrc.json`。
 
 无界面扫描：
 
@@ -156,9 +158,16 @@ main.go                       入口、窗口、托盘、单实例、自检
 launcherservice.go            Wails 服务、原生对话框与文件选择
 internal/launcher/            扫描、配置、启动、使用记录、更新
 frontend/src/main.ts          挂载 Vue 应用
-frontend/src/app/             命令中心、应用库与共享状态
-frontend/src/sheet.ts         编辑、新建与设置面板的挂载入口
-frontend/src/sheet/           面板状态与 Vue 组件
+frontend/src/app/             应用外壳：命令中心、应用库与共享逻辑
+frontend/src/app/shell.ts     共享状态、偏好、主题与焦点
+frontend/src/app/actions.ts   扫描、启动、分类等数据流
+frontend/src/app/dialogs.ts   分类与更新对话框、面板上下文
+frontend/src/app/commands.ts  命令中心的条目、选中与执行
+frontend/src/app/library.ts   应用库的筛选、选中与拖拽
+frontend/src/app/boot.ts      启动编排、键盘与窗口事件
+frontend/src/Icon.vue         图标组件
+frontend/src/Tile.vue         应用图标块
+frontend/src/sheet/           编辑、新建与设置面板（状态与 Vue 组件）
 frontend/src/state.ts         筛选、排序、草稿与校验
 frontend/src/style.css        界面样式
 frontend/bindings/            Wails 生成的类型绑定

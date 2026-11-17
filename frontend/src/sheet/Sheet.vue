@@ -1,8 +1,9 @@
 <script setup lang="ts">
+import Icon from '../Icon.vue';
 import { computed } from 'vue';
 import { categoryOf, statusOf } from '../state';
 import type { App } from '../state';
-import { icons, statusName } from '../ui';
+import { statusName } from '../ui';
 import Tile from '../Tile.vue';
 import {
     actionOf,
@@ -34,6 +35,7 @@ import {
     quit,
     removeUpdater,
     requestClose,
+    registerField,
     save,
     setUpdaterAction,
     setUpdaterParam,
@@ -42,10 +44,17 @@ import {
     tabList,
     toggleAutoStart,
     toggleAutohide,
-    toggleTheme
+    toggleTheme,
+    focusField
 } from './state';
 
 const app = computed<App | undefined>(() => currentApp());
+const editTitleRef = (element: unknown): void => registerField('edit-title', element as HTMLElement | null);
+const createSourceRef = (element: unknown): void => registerField('create-source', element as HTMLElement | null);
+const linkTitleRef =
+    (index: number) =>
+    (element: unknown): void =>
+        registerField('link-title-' + index, element as HTMLElement | null);
 const appStatus = computed(() => (app.value ? statusName(statusOf(app.value)) : null));
 const appType = computed(() => (!app.value ? '' : app.value.type === 'GUI' ? '图形应用' : app.value.type === 'CLI' ? '命令行应用' : '待配置'));
 const categories = computed(() => categoryNames());
@@ -103,10 +112,10 @@ function onNameInput(event: Event): void {
 function onEntryInputCreate(): void {
     newEntryChanged();
 }
-function focusLinkTitle(event: Event): void {
+function focusLinkTitle(event: Event, index: number): void {
     const target = event.target as HTMLElement;
     if (target.closest('input,button')) return;
-    (event.currentTarget as HTMLElement).querySelector<HTMLInputElement>('.link-title')?.focus();
+    focusField('link-title-' + index);
 }
 function onParamInput(index: number, event: Event): void {
     setUpdaterParam(index, (event.target as HTMLInputElement).value);
@@ -140,7 +149,9 @@ function onCancel(): void {
                     <h2 id="sheet-title">{{ title }}</h2>
                     <p id="sheet-sub">{{ subtitle }}</p>
                 </div>
-                <button id="sheet-close" type="button" class="sheet-close" aria-label="关闭面板" @click="onClose"><span v-html="icons.close"></span></button>
+                <button id="sheet-close" type="button" class="sheet-close" aria-label="关闭面板" @click="onClose">
+                    <span><Icon name="close" /></span>
+                </button>
             </header>
 
             <div id="sheet-body" class="sheet-body">
@@ -171,7 +182,8 @@ function onCancel(): void {
                     <div id="sheet-tab">
                         <template v-if="state.tab === 'basic'">
                             <div class="field">
-                                <label for="edit-title">应用名称</label><input id="edit-title" v-model="state.draft.title" autocomplete="off" />
+                                <label for="edit-title">应用名称</label
+                                ><input id="edit-title" :ref="editTitleRef" v-model="state.draft.title" autocomplete="off" />
                             </div>
                             <div class="field">
                                 <label for="edit-category">分类</label>
@@ -211,9 +223,9 @@ function onCancel(): void {
                             <label class="check"><input id="edit-admin" v-model="state.draft.runAsAdmin" type="checkbox" /><span>以管理员身份运行</span></label>
                             <div class="sheet-links">
                                 <button id="edit-open-dir" type="button" class="btn small" @click="openEntryFolder">
-                                    <span v-html="icons.folder"></span>打开应用目录</button
+                                    <span><Icon name="folder" /></span>打开应用目录</button
                                 ><button id="edit-profile" type="button" class="btn small" @click="editProfile">
-                                    <span v-html="icons.external"></span>编辑 app.toml
+                                    <span><Icon name="external" /></span>编辑 app.toml
                                 </button>
                             </div>
                         </template>
@@ -221,15 +233,20 @@ function onCancel(): void {
                         <template v-else-if="state.tab === 'links'">
                             <template v-if="!state.draft.relatedLinks.length">
                                 <button id="add-link" type="button" class="list-add wide" @click="addLink">
-                                    <span v-html="icons.plus"></span><b>添加相关链接</b><span>官网、下载页或使用文档等地址</span>
+                                    <span><Icon name="plus" /></span><b>添加相关链接</b><span>官网、下载页或使用文档等地址</span>
                                 </button>
                             </template>
                             <template v-else>
                                 <p class="link-hint">官网、下载页或使用文档等外部地址。</p>
                                 <div class="link-list">
-                                    <div v-for="(link, index) in state.draft.relatedLinks" :key="index" class="link-card" @click="focusLinkTitle">
+                                    <div
+                                        v-for="(link, index) in state.draft.relatedLinks"
+                                        :key="index"
+                                        class="link-card"
+                                        @click="focusLinkTitle($event, index)">
                                         <div class="link-fields">
                                             <input
+                                                :ref="linkTitleRef(index)"
                                                 v-model="link.title"
                                                 class="link-title"
                                                 :data-link="index"
@@ -258,7 +275,7 @@ function onCancel(): void {
                                                 :aria-label="'打开链接 ' + (index + 1)"
                                                 :disabled="!link.url.trim()"
                                                 @click="openLink(link.url)">
-                                                <span v-html="icons.external"></span>
+                                                <span><Icon name="external" /></span>
                                             </button>
                                             <button
                                                 type="button"
@@ -267,19 +284,21 @@ function onCancel(): void {
                                                 title="删除链接"
                                                 :aria-label="'删除链接 ' + (index + 1)"
                                                 @click="state.draft.relatedLinks.splice(index, 1)">
-                                                <span v-html="icons.close"></span>
+                                                <span><Icon name="close" /></span>
                                             </button>
                                         </div>
                                     </div>
                                 </div>
-                                <button id="add-link" type="button" class="list-add" @click="addLink"><span v-html="icons.plus"></span>添加链接</button>
+                                <button id="add-link" type="button" class="list-add" @click="addLink">
+                                    <span><Icon name="plus" /></span>添加链接
+                                </button>
                             </template>
                         </template>
 
                         <template v-else>
                             <template v-if="!state.draft.updater.length">
                                 <button id="add-updater" type="button" class="list-add wide" @click="addUpdater">
-                                    <span v-html="icons.plus"></span><b>添加更新操作</b><span>安装更新包时按顺序执行</span>
+                                    <span><Icon name="plus" /></span><b>添加更新操作</b><span>安装更新包时按顺序执行</span>
                                 </button>
                             </template>
                             <template v-else>
@@ -312,11 +331,13 @@ function onCancel(): void {
                                             title="删除操作"
                                             :aria-label="'删除操作 ' + (index + 1)"
                                             @click="removeUpdater(index)">
-                                            <span v-html="icons.close"></span>
+                                            <span><Icon name="close" /></span>
                                         </button>
                                     </div>
                                 </div>
-                                <button id="add-updater" type="button" class="list-add" @click="addUpdater"><span v-html="icons.plus"></span>添加操作</button>
+                                <button id="add-updater" type="button" class="list-add" @click="addUpdater">
+                                    <span><Icon name="plus" /></span>添加操作
+                                </button>
                             </template>
                             <p class="hint">
                                 操作按顺序执行；清空目录时原有内容移入 content.bak，固定路径保持不动；覆盖安装只备份将被覆盖的文件。<br />固定文件/目录：清空时保留指定相对路径；清空目录：删除未固定的内容；解包安装包：把
@@ -333,7 +354,7 @@ function onCancel(): void {
                     <div v-if="state.createStep === 1">
                         <div class="step-line"><span class="step-dot">1</span><b>来源</b><span>→</span><span>2 填写详情</span></div>
                         <div class="dropzone">
-                            <span v-html="icons.folder"></span><strong>选择软件目录或压缩包</strong><span>支持目录、ZIP、7z；也可以直接粘贴完整路径</span>
+                            <span><Icon name="folder" /></span><strong>选择软件目录或压缩包</strong><span>支持目录、ZIP、7z；也可以直接粘贴完整路径</span>
                         </div>
                         <div class="field">
                             <label for="create-kind">来源类型</label
@@ -347,6 +368,7 @@ function onCancel(): void {
                             <div class="input-row">
                                 <input
                                     id="create-source"
+                                    :ref="createSourceRef"
                                     :value="state.createSource"
                                     placeholder="例如 D:\Downloads\my-app.zip"
                                     autocomplete="off"

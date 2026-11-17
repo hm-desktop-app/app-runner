@@ -1,7 +1,7 @@
 import { rankApps, recentApps, visibleApps } from '../state';
 import type { App } from '../state';
 import { openCreate, openSettings } from '../sheet/state';
-import { icons } from '../ui';
+import type { IconName } from '../ui';
 import { launch, refresh } from './actions';
 import { setMode, shell } from './shell';
 
@@ -11,7 +11,7 @@ export interface Command {
     sub: string;
     note: string;
     key: string;
-    icon: string;
+    icon: IconName;
     run: () => void;
 }
 export interface AppItem {
@@ -33,7 +33,7 @@ const commands: Command[] = [
         sub: '从目录或压缩包导入',
         note: '分两步：先选来源，再确认名称与分类。导入后应用复制进库中，可随时编辑。',
         key: 'N',
-        icon: icons.plus,
+        icon: 'plus',
         run: () => openCreate()
     },
     {
@@ -42,7 +42,7 @@ const commands: Command[] = [
         sub: '浏览、搜索与管理所有应用',
         note: '分类筛选、状态过滤、批量操作与拖拽整理都在这边；按 Esc 或左上角箭头返回命令中心。',
         key: 'L',
-        icon: icons.grid,
+        icon: 'grid',
         run: () => setMode('library')
     },
     {
@@ -51,7 +51,7 @@ const commands: Command[] = [
         sub: '重新扫描本地应用目录',
         note: '只读扫描，不会修改应用文件；重新读取每个 app.toml 并同步源与本地文件的变化。',
         key: 'F5',
-        icon: icons.refresh,
+        icon: 'refresh',
         run: () => void refresh()
     },
     {
@@ -60,7 +60,7 @@ const commands: Command[] = [
         sub: '热键、启动与外观',
         note: '改动立即生效并写入配置，不需要重启应用。',
         key: ',',
-        icon: icons.settings,
+        icon: 'settings',
         run: () => openSettings()
     }
 ];
