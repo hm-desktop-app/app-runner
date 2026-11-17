@@ -1,8 +1,7 @@
 import {nextTick, reactive} from 'vue';
 import * as API from '../../bindings/app-runner/launcherservice';
-import {categoryOf, profileOf, statusOf, validation} from '../state';
+import {profileOf, validation} from '../state';
 import type {App, Link, NewAppInfo, Profile} from '../state';
-import {escape, statusName, tile} from '../ui';
 
 export type Theme = 'light' | 'dark';
 export interface SettingsInfo {hotkey: string; hotkeyError: string; library: string; autoStart: boolean}
@@ -78,12 +77,6 @@ export const categoryNames = (): string[] => {
  const names = current ? current.categories() : [];
  const selected = state.draft?.category;
  return selected && !names.includes(selected) ? [...names, selected] : names;
-};
-export const summaryHtml = (): string => {
- const app = currentApp();
- if (!app) return '';
- const status = statusName(statusOf(app));
- return tile(app) + '<div><strong>' + escape(app.title) + '</strong><span>' + escape(categoryOf(app) || '未分类') + ' · ' + escape(app.type === 'GUI' ? '图形应用' : app.type === 'CLI' ? '命令行应用' : '待配置') + (app.version ? ' · ' + escape(app.version) : '') + '</span></div><span class="chip ' + status.tone + '">' + status.label + '</span>';
 };
 
 let entryTimer = 0;

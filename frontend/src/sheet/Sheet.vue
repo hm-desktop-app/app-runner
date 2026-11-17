@@ -1,19 +1,22 @@
 <script setup lang="ts">
 import {computed} from 'vue';
 import * as API from '../../bindings/app-runner/launcherservice';
+import {categoryOf, statusOf} from '../state';
 import type {App} from '../state';
-import {icons} from '../ui';
+import {icons, statusName} from '../ui';
+import Tile from '../Tile.vue';
 import {
  actionOf, addLink, addUpdater, canSave, categoryNames, chooseCategory, context,
  createNameChanged, createSourceChanged, createValidation, currentApp, dirty, editError, editProfile,
  entryChanged, knownActions, newCategoryOption, newEntryChanged, normalizeUrl, openEntryFolder, openLink,
  openUpdate, openLibrary, parameterOf, pickSource, prepare, quit, removeUpdater, requestClose, save,
- setUpdaterAction, setUpdaterParam, state, submitCreate, summaryHtml, tabList, toggleAutoStart, toggleAutohide,
+ setUpdaterAction, setUpdaterParam, state, submitCreate, tabList, toggleAutoStart, toggleAutohide,
  toggleTheme,
 } from './state';
 
 const app = computed<App | undefined>(() => currentApp());
-const summary = computed(() => summaryHtml());
+const appStatus = computed(() => app.value ? statusName(statusOf(app.value)) : null);
+const appType = computed(() => !app.value ? '' : app.value.type === 'GUI' ? '图形应用' : app.value.type === 'CLI' ? '命令行应用' : '待配置');
 const categories = computed(() => categoryNames());
 const title = computed(() => state.open === 'edit' ? '编辑应用' : state.open === 'create' ? '新建应用' : state.open === 'settings' ? '设置' : '');
 const subtitle = computed(() => {
@@ -73,7 +76,7 @@ function onCancel(): void {void requestClose();}
 
    <div class="sheet-body" id="sheet-body">
     <template v-if="state.open === 'edit' && state.draft">
-     <div class="sheet-app" v-html="summary"></div>
+     <div v-if="app" class="sheet-app"><Tile :app="app" /><div><strong>{{ app.title }}</strong><span>{{ categoryOf(app) || '未分类' }} · {{ appType }}<template v-if="app.version"> · {{ app.version }}</template></span></div><span class="chip" :class="appStatus?.tone">{{ appStatus?.label }}</span></div>
      <div class="tabs" role="tablist">
       <button v-for="item in tabList" :key="item.id" type="button" class="tab" :class="{active: state.tab === item.id}" :data-tab="item.id" role="tab" :aria-selected="state.tab === item.id" @click="state.tab = item.id">{{ item.label }}</button>
      </div>

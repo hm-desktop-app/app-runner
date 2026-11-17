@@ -1,4 +1,4 @@
-import type {App, AppStatus} from './state';
+import type {AppStatus} from './state';
 
 export const $ = <T extends HTMLElement = HTMLElement>(selector: string): T => document.querySelector(selector)!;
 export const $$ = <T extends HTMLElement = HTMLElement>(selector: string): T[] => Array.from(document.querySelectorAll<T>(selector));
@@ -32,17 +32,10 @@ const statusNames: Record<AppStatus,{label: string; tone: string}> = {
 };
 export function statusName(status: AppStatus): {label: string; tone: string} { return statusNames[status]; }
 
+export const failedIcons = new Set<string>();
 /** 无图标时用标题哈希得到稳定的低饱和配色，避免整屏灰块。 */
-export function tileTone(title: string): string {
+export function tileTone(title: string): Record<string, string> {
  let hash = 0;
  for (const character of title) hash = (hash * 31 + character.codePointAt(0)!) % 360;
- return '--a:hsl(' + hash + ' 30% 44%);--b:hsl(' + (hash + 28) % 360 + ' 34% 58%)';
-}
-const failedIcons = new Set<string>();
-/** 记住解码失败的图标，避免每次重绘都重新请求同一个坏地址。 */
-export function iconFailed(url: string): void {failedIcons.add(url);}
-export function tile(app: App, extraClass = '', lazy = false): string {
- const mark = escape(Array.from(app.title || '?')[0] || '?');
- const image = app.iconURL && !failedIcons.has(app.iconURL) ? '<img class="tile-icon" src="' + escape(app.iconURL) + '" alt="" decoding="async"' + (lazy ? ' loading="lazy"' : '') + '>' : '';
- return '<span class="tile ' + extraClass + '" style="' + tileTone(app.title) + '" aria-hidden="true"><span class="tile-mark">' + mark + '</span>' + image + '</span>';
+ return {'--a': 'hsl(' + hash + ' 30% 44%)', '--b': 'hsl(' + (hash + 28) % 360 + ' 34% 58%)'};
 }

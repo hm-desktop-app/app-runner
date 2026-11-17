@@ -3,9 +3,9 @@ import {Events} from '@wailsio/runtime';
 import * as API from '../../bindings/app-runner/launcherservice';
 import {categoryOf, filterLibrary, filterKey, groupApps, parseFilter, rankApps, recentApps, relativeTime, statusOf, suggestsUpdate, visibleApps} from '../state';
 import type {App, LibraryFilter, SortMode} from '../state';
-import type {SettingsInfo, SheetContext, Theme} from '../sheet';
-import * as sheet from '../sheet';
-import {$, escape, iconFailed, icons, statusName, tile} from '../ui';
+import type {SettingsInfo, SheetContext, Theme} from '../sheet/state';
+import * as sheet from '../sheet/state';
+import {$, escape, icons, statusName} from '../ui';
 
 export interface Command {id: string; name: string; sub: string; note: string; key: string; icon: string; run: () => void}
 export interface AppItem {kind: 'app'; key: string; app: App}
@@ -89,7 +89,7 @@ export function setMode(next: Mode): void {
  setTimeout(focusSearch, 30);
 }
 export function focusSearch(): void {
- if (sheet.isOpen()) return;
+ if (sheet.state.open !== null) return;
  const input = (shell.mode === 'command' ? $('#cmd-search') : $('#lib-search')) as HTMLInputElement | null;
  input?.focus();
  input?.select();
@@ -244,9 +244,9 @@ export async function changeCategory(id: string, category: string): Promise<bool
 export function setSort(value: SortMode): void {shell.sort = value;}
 
 /* ---------- sheet ---------- */
-export function openEdit(id: string): void {sheet.openEdit(sheetCtx, id);}
-export function openCreate(): void {sheet.openCreate(sheetCtx);}
-export function openSettings(): void {sheet.openSettings(sheetCtx);}
+export function openEdit(id: string): void {sheet.openEdit(id);}
+export function openCreate(): void {sheet.openCreate();}
+export function openSettings(): void {sheet.openSettings();}
 const sheetCtx: SheetContext = {
  apps: () => shell.apps,
  categories: () => categoryNames(),
@@ -274,6 +274,7 @@ const sheetCtx: SheetContext = {
  closed: () => focusSearch(),
  openUpdate: id => openUpdateDialog(id),
 };
+sheet.setContext(sheetCtx);
 
 /* ---------- overlays ---------- */
 const errorText = (error: unknown): string => error instanceof Error ? error.message : String(error);
@@ -401,7 +402,7 @@ let blurTimer = 0;
 function scheduleAutoHide(): void {
  window.clearTimeout(blurTimer);
  blurTimer = window.setTimeout(() => {
-  if (shell.busy || sheet.isOpen() || shell.mode !== 'command') return;
+  if (shell.busy || sheet.state.open !== null || shell.mode !== 'command') return;
   if (document.querySelector('dialog[open]')) return;
   hideWindow();
  }, 180);
@@ -427,8 +428,8 @@ export function start(): void {
  document.addEventListener('keydown', event => {
   const target = event.target as HTMLElement;
   if (document.querySelector('dialog[open]')) return;
-  if (sheet.handleKey(sheetCtx, event)) return;
-  if (sheet.isOpen() || shell.busy) return;
+  if (sheet.handleKey(event)) return;
+  if (sheet.state.open !== null || shell.busy) return;
   if (event.isComposing) return;
   const typing = target.matches('input,textarea,select') || target.isContentEditable;
   const modifier = event.ctrlKey || event.metaKey;
@@ -466,29 +467,18 @@ export function start(): void {
    if (!typing && event.key.toLowerCase() === 'e' && shell.librarySelected) {event.preventDefault();openEdit(shell.librarySelected);return;}
   }
   if (!typing && !modifier && !event.altKey && event.key.length === 1) {
+   if (shell.mode === 'command') shell.commandQuery += event.key;else shell.libraryQuery += event.key;
    const input = (shell.mode === 'command' ? $('#cmd-search') : $('#lib-search')) as HTMLInputElement | null;
-   if (!input) return;
-   input.focus();
-   input.value += event.key;
-   input.dispatchEvent(new Event('input'));
+   input?.focus();
    event.preventDefault();
   }
  });
 
  window.addEventListener('focus', () => {
-  if (sheet.isOpen() || document.querySelector('dialog[open]')) return;
+  if (sheet.state.open !== null || document.querySelector('dialog[open]')) return;
   clearSearch();
   focusSearch();
  });
-
- document.addEventListener('load', event => {
-  const image = event.target;
-  if (image instanceof HTMLImageElement && image.classList.contains('tile-icon')) image.parentElement?.classList.add('loaded');
- }, true);
- document.addEventListener('error', event => {
-  const image = event.target;
-  if (image instanceof HTMLImageElement && image.classList.contains('tile-icon')) {iconFailed(image.getAttribute('src') || '');image.hidden = true;image.parentElement?.classList.remove('loaded');}
- }, true);
 
  void refresh().then(() => focusSearch());
 }
@@ -524,4 +514,4 @@ export function dragOverTable(event: DragEvent): void {
 export function openDirectory(id: string): void {void perform(() => API.OpenDirectory(id));}
 export function openLinkUrl(url: string): void {void perform(() => API.OpenLink(url));}
 
-export {statusName, statusOf, categoryOf, relativeTime, escape, icons, tile};
+export {statusName, statusOf, categoryOf, relativeTime, escape, icons};

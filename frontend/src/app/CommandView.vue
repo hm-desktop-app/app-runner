@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import {computed} from 'vue';
-import {commandGroups, categoryOf, execute, hideWindow, hoverCommand, icons, launch, openDirectory, openEdit, openLinkUrl, openUpdateDialog, peekItem, relativeTime, shell, statusName, statusOf, suggestedCount, tile} from './store';
+import {commandGroups, categoryOf, execute, hideWindow, hoverCommand, icons, launch, openDirectory, openEdit, openLinkUrl, openUpdateDialog, peekItem, relativeTime, shell, statusName, statusOf, suggestedCount} from './store';
+import Tile from '../Tile.vue';
 import {suggestsUpdate} from '../state';
 import type {AppItem, Item} from './store';
 
@@ -39,7 +40,7 @@ const peekModified = computed(() => {
      <div class="cmd-group">{{ group.label }}</div>
      <button v-for="item in group.items" :key="item.key" type="button" class="result" :class="{selected: item.key === shell.commandSelected}" :data-key="item.key" role="option" :aria-selected="item.key === shell.commandSelected" @mouseenter="hoverCommand(item.key)" @click="rowClick(item)" @dblclick="rowDoubleClick(item)">
       <span v-if="item.kind === 'command'" class="cmd-icon" v-html="item.command.icon"></span>
-      <span v-else class="result-tile" v-html="tile(item.app)"></span>
+      <span v-else class="result-tile"><Tile :app="item.app" /></span>
       <span class="result-main">
        <span class="result-name">{{ item.kind === 'command' ? item.command.name : item.app.title }}</span>
        <span class="result-sub">{{ item.kind === 'command' ? item.command.sub : subText(item.app) }}</span>
@@ -62,7 +63,7 @@ const peekModified = computed(() => {
      <div class="peek-actions"><button type="button" class="btn primary" :data-exec="peek.key" @click="execute(peek.key)">执行</button></div>
     </template>
     <template v-else-if="peek?.kind === 'app'">
-     <div class="peek-head"><span class="result-tile large" v-html="tile(peek.app, 'large')"></span><div class="peek-title"><h2>{{ peek.app.title }}</h2><div class="chips"><span class="chip">{{ categoryOf(peek.app) || '未分类' }}</span><span v-if="peekStatus" class="chip" :class="peekStatus.tone">{{ peekStatus.label }}</span><span v-if="suggestsUpdate(peek.app)" class="chip update">建议更新</span><span v-if="peek.app.runAsAdmin" class="chip">管理员</span></div></div></div>
+     <div class="peek-head"><span class="result-tile large"><Tile :app="peek.app" /></span><div class="peek-title"><h2>{{ peek.app.title }}</h2><div class="chips"><span class="chip">{{ categoryOf(peek.app) || '未分类' }}</span><span v-if="peekStatus" class="chip" :class="peekStatus.tone">{{ peekStatus.label }}</span><span v-if="suggestsUpdate(peek.app)" class="chip update">建议更新</span><span v-if="peek.app.runAsAdmin" class="chip">管理员</span></div></div></div>
      <p class="peek-desc"><template v-if="peek.app.description">{{ peek.app.description }}</template><span v-else class="faint">还没有备注</span></p>
      <div v-if="peekLinks.length" class="peek-links"><span class="peek-note-title">相关链接</span><button v-for="link in peekLinks" :key="link.url" type="button" class="peek-link" :data-open-url="link.url" @click="openLinkUrl(link.url)"><span>{{ link.title || link.url }}</span><i v-html="icons.external"></i></button></div>
      <button v-if="peek.app.updater.length" type="button" class="update-box" :data-update="peek.app.uuid" @click="openUpdateDialog(peek.app.uuid)"><span v-html="icons.update"></span><b>已配置更新方式</b><span>安装更新 ›</span></button>

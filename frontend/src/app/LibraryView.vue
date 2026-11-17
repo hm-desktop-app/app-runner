@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import {computed} from 'vue';
-import {categoryOf, categoryTone, dragLeaveCategory, dragOverCategory, dropOnCategory, dropOnNewCategory, endDrag, filterRows, goBack, hideWindow, icons, launch, libraryRows, openCategoryDialog, openCreate, openDirectory, openEdit, openGroupEditor, openUpdateDialog, relativeTime, selectApp, selectFilter, setSort, shell, startDrag, statusName, statusOf, suggestedCount, tile} from './store';
+import {categoryOf, categoryTone, dragLeaveCategory, dragOverCategory, dropOnCategory, dropOnNewCategory, endDrag, filterRows, goBack, hideWindow, icons, launch, libraryRows, openCategoryDialog, openCreate, openDirectory, openEdit, openGroupEditor, openUpdateDialog, relativeTime, selectApp, selectFilter, setSort, shell, startDrag, statusName, statusOf, suggestedCount} from './store';
+import Tile from '../Tile.vue';
 import type {App} from '../state';
 import type {SortMode} from '../state';
 
@@ -71,7 +72,7 @@ function openGroup(event: Event, name: string): void {event.preventDefault();ope
        <tr v-if="!rows.length" class="table-empty"><td colspan="5">没有匹配的应用<br>试试其他关键词或筛选条件。</td></tr>
        <template v-else-if="shell.libraryVisited">
         <tr v-for="app in rows" :key="app.uuid" :data-id="app.uuid" draggable="true" :class="{selected: app.uuid === shell.librarySelected}" @mousedown="rowMouseDown($event, app.uuid)" @dragstart="dragStart($event, app.uuid)" @dragend="endDrag" @click="onRowClick(app.uuid)" @dblclick="rowDoubleClick(app.uuid)">
-         <td><div class="cell-app"><span class="cell-tile" v-html="tile(app, '', true)"></span><div class="cell-main"><span class="cell-name">{{ app.title }}</span><span class="cell-type">{{ typeText(app) }}</span></div></div></td>
+         <td><div class="cell-app"><span class="cell-tile"><Tile :app="app" lazy /></span><div class="cell-main"><span class="cell-name">{{ app.title }}</span><span class="cell-type">{{ typeText(app) }}</span></div></div></td>
          <td><span class="cell-cat">{{ categoryOf(app) || '未分类' }}</span></td>
          <td><span class="cell-time">{{ relativeTime(app.lastUsed) }}</span></td>
          <td><span class="status"><i class="dot" :class="statusName(statusOf(app)).tone"></i>{{ statusName(statusOf(app)).label }}</span></td>
@@ -83,7 +84,7 @@ function openGroup(event: Event, name: string): void {event.preventDefault();ope
     </div>
     <div class="lib-selection" id="lib-selection" :class="{has: !!selected}">
      <template v-if="selected">
-      <div class="sel-app"><span class="sel-tile" v-html="tile(selected)"></span><div class="sel-main"><span class="sel-kicker">已选择</span><span class="sel-name">{{ selected.title }}</span><span class="sel-meta">{{ categoryOf(selected) || '未分类' }} · {{ selectedStatus?.label }} · {{ relativeTime(selected.lastUsed) }}</span></div></div>
+      <div class="sel-app"><span class="sel-tile"><Tile :app="selected" /></span><div class="sel-main"><span class="sel-kicker">已选择</span><span class="sel-name">{{ selected.title }}</span><span class="sel-meta">{{ categoryOf(selected) || '未分类' }} · {{ selectedStatus?.label }} · {{ relativeTime(selected.lastUsed) }}</span></div></div>
       <div class="sel-actions">
        <button v-if="selected.updater.length" type="button" class="btn update" data-sel="update" @click="openUpdateDialog(selected.uuid)"><span v-html="icons.update"></span>更新</button>
        <button type="button" class="btn primary" data-sel="run" :disabled="!selectedRunnable" @click="launch(selected.uuid)"><span v-html="icons.play"></span>运行</button>
