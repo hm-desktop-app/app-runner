@@ -6,10 +6,10 @@ import Overlays from './Overlays.vue';
 </script>
 
 <template>
- <div class="window-body">
-  <CommandView />
-  <LibraryView />
- </div>
- <div id="sheet-root"><Sheet /></div>
- <Overlays />
+    <div class="window-body">
+        <CommandView />
+        <LibraryView />
+    </div>
+    <div id="sheet-root"><Sheet /></div>
+    <Overlays />
 </template>

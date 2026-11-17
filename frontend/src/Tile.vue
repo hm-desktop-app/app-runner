@@ -12,15 +12,23 @@ const mark = computed(() => Array.from(props.app.title || '?')[0] || '?');
 const tone = computed(() => tileTone(props.app.title));
 
 function onError(): void {
- failedIcons.add(url.value);
- failed.value = true;
- loaded.value = false;
+    failedIcons.add(url.value);
+    failed.value = true;
+    loaded.value = false;
 }
 </script>
 
 <template>
- <span class="tile" :class="{ loaded }" :style="tone" aria-hidden="true">
-  <span class="tile-mark">{{ mark }}</span>
-  <img v-if="showImage" class="tile-icon" :src="url" alt="" decoding="async" :loading="lazy ? 'lazy' : undefined" @load="loaded = true" @error="onError" />
- </span>
+    <span class="tile" :class="{ loaded }" :style="tone" aria-hidden="true">
+        <span class="tile-mark">{{ mark }}</span>
+        <img
+            v-if="showImage"
+            class="tile-icon"
+            :src="url"
+            alt=""
+            decoding="async"
+            :loading="lazy ? 'lazy' : undefined"
+            @load="loaded = true"
+            @error="onError" />
+    </span>
 </template>
