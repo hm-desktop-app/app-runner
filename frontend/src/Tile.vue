@@ -1,9 +1,9 @@
 <script setup lang="ts">
-import {computed, ref} from 'vue';
-import type {App} from './state';
-import {failedIcons, tileTone} from './ui';
+import { computed, ref } from 'vue';
+import type { App } from './state';
+import { failedIcons, tileTone } from './ui';
 
-const props = defineProps<{app: App; lazy?: boolean}>();
+const props = defineProps<{ app: App; lazy?: boolean }>();
 const loaded = ref(false);
 const failed = ref(false);
 const url = computed(() => props.app.iconURL || '');
@@ -19,8 +19,8 @@ function onError(): void {
 </script>
 
 <template>
- <span class="tile" :class="{loaded}" :style="tone" aria-hidden="true">
+ <span class="tile" :class="{ loaded }" :style="tone" aria-hidden="true">
   <span class="tile-mark">{{ mark }}</span>
-  <img v-if="showImage" class="tile-icon" :src="url" alt="" decoding="async" :loading="lazy ? 'lazy' : undefined" @load="loaded = true" @error="onError">
+  <img v-if="showImage" class="tile-icon" :src="url" alt="" decoding="async" :loading="lazy ? 'lazy' : undefined" @load="loaded = true" @error="onError" />
  </span>
 </template>

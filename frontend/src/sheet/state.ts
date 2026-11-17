@@ -1,10 +1,15 @@
-import {nextTick, reactive} from 'vue';
+import { nextTick, reactive } from 'vue';
 import * as API from '../../bindings/app-runner/launcherservice';
-import {profileOf, validation} from '../state';
-import type {App, Link, NewAppInfo, Profile} from '../state';
+import { profileOf, validation } from '../state';
+import type { App, Link, NewAppInfo, Profile } from '../state';
 
 export type Theme = 'light' | 'dark';
-export interface SettingsInfo {hotkey: string; hotkeyError: string; library: string; autoStart: boolean}
+export interface SettingsInfo {
+ hotkey: string;
+ hotkeyError: string;
+ library: string;
+ autoStart: boolean;
+}
 export interface SheetContext {
  apps(): App[];
  categories(): string[];
@@ -27,10 +32,10 @@ export interface SheetContext {
 export type SheetName = 'edit' | 'create' | 'settings';
 export type EditTab = 'basic' | 'links' | 'update';
 export const newCategoryOption = '__new-category__';
-export const tabList: {id: EditTab; label: string}[] = [
- {id: 'basic', label: '基本信息'},
- {id: 'links', label: '相关链接'},
- {id: 'update', label: '更新方式'},
+export const tabList: { id: EditTab; label: string }[] = [
+ { id: 'basic', label: '基本信息' },
+ { id: 'links', label: '相关链接' },
+ { id: 'update', label: '更新方式' }
 ];
 export const knownActions = ['PIN', 'RMC', 'UNPKG'];
 
@@ -55,19 +60,26 @@ export const state = reactive({
  preparing: false,
  settingsInfo: null as SettingsInfo | null,
  settingsAutohide: false,
- settingsThemeDark: false,
+ settingsThemeDark: false
 });
 
 let current: SheetContext | null = null;
-export const setContext = (value: SheetContext): void => {current = value;};
+export const setContext = (value: SheetContext): void => {
+ current = value;
+};
 export const context = (): SheetContext => {
  if (!current) throw new Error('sheet context is not ready');
  return current;
 };
 
-export const currentApp = (): App | undefined => state.editingId ? context().apps().find(item => item.uuid === state.editingId) : undefined;
+export const currentApp = (): App | undefined =>
+ state.editingId
+  ? context()
+     .apps()
+     .find((item) => item.uuid === state.editingId)
+  : undefined;
 export const dirty = (): boolean => !!state.draft && JSON.stringify(state.draft) !== state.baseline;
-export const editError = (): string => state.draft ? validation(state.draft) : '';
+export const editError = (): string => (state.draft ? validation(state.draft) : '');
 export const canSave = (): boolean => !state.saving && !editError() && dirty();
 export const createValidation = (): string => {
  if (!state.draft) return '';
@@ -96,7 +108,9 @@ function resetSheet(): void {
 }
 
 export function openEdit(id: string): void {
- const app = context().apps().find(item => item.uuid === id);
+ const app = context()
+  .apps()
+  .find((item) => item.uuid === id);
  if (!app) return;
  state.open = 'edit';
  state.editingId = id;
@@ -109,7 +123,10 @@ export function openEdit(id: string): void {
  scheduleEntryCheck();
  void nextTick(() => {
   const field = document.getElementById('edit-title');
-  if (field instanceof HTMLInputElement) {field.focus({preventScroll: true});field.select();}
+  if (field instanceof HTMLInputElement) {
+   field.focus({ preventScroll: true });
+   field.select();
+  }
  });
 }
 
@@ -123,7 +140,7 @@ export function openCreate(): void {
  state.pendingNew = null;
  state.newEntryValid = false;
  state.createError = '';
- void nextTick(() => document.getElementById('create-source')?.focus({preventScroll: true}));
+ void nextTick(() => document.getElementById('create-source')?.focus({ preventScroll: true }));
 }
 
 export function openSettings(): void {
@@ -132,12 +149,15 @@ export function openSettings(): void {
  state.settingsInfo = null;
  state.settingsAutohide = ctx.autohide();
  state.settingsThemeDark = ctx.theme() === 'dark';
- void ctx.settings().then(info => {
-  if (state.open === 'settings') {
-   state.settingsInfo = info;
-   state.settingsAutohide = ctx.autohide();
-  }
- }).catch(console.error);
+ void ctx
+  .settings()
+  .then((info) => {
+   if (state.open === 'settings') {
+    state.settingsInfo = info;
+    state.settingsAutohide = ctx.autohide();
+   }
+  })
+  .catch(console.error);
 }
 
 export function handleKey(event: KeyboardEvent): boolean {
@@ -149,8 +169,16 @@ export function handleKey(event: KeyboardEvent): boolean {
   return true;
  }
  if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 's') {
-  if (state.open === 'edit') {event.preventDefault();void save();return true;}
-  if (state.open === 'create' && state.createStep === 2) {event.preventDefault();void submitCreate();return true;}
+  if (state.open === 'edit') {
+   event.preventDefault();
+   void save();
+   return true;
+  }
+  if (state.open === 'create' && state.createStep === 2) {
+   event.preventDefault();
+   void submitCreate();
+   return true;
+  }
  }
  return false;
 }
@@ -160,10 +188,10 @@ export async function requestClose(): Promise<boolean> {
  if (!state.open) return true;
  if (ctx.isBusy()) return false;
  if (state.open === 'edit' && dirty()) {
-  if (!await API.Confirm('当前详情有未保存的更改，确定放弃吗？')) return false;
+  if (!(await API.Confirm('当前详情有未保存的更改，确定放弃吗？'))) return false;
  }
  if (state.open === 'create' && state.pendingNew) {
-  if (!await API.Confirm('新建应用还没有保存，确定放弃吗？')) return false;
+  if (!(await API.Confirm('新建应用还没有保存，确定放弃吗？'))) return false;
   const token = state.pendingNew.token;
   state.pendingNew = null;
   await API.DiscardNewApp(token).catch(console.error);
@@ -199,8 +227,12 @@ function scheduleNewEntryCheck(): void {
  clearTimeout(newEntryTimer);
  newEntryTimer = window.setTimeout(() => void checkNewEntry(), 200);
 }
-export function entryChanged(): void {scheduleEntryCheck();}
-export function newEntryChanged(): void {scheduleNewEntryCheck();}
+export function entryChanged(): void {
+ scheduleEntryCheck();
+}
+export function newEntryChanged(): void {
+ scheduleNewEntryCheck();
+}
 
 export async function checkNewEntry(): Promise<void> {
  clearTimeout(newEntryTimer);
@@ -222,12 +254,12 @@ export async function checkNewEntry(): Promise<void> {
 export async function save(): Promise<void> {
  const ctx = context();
  if (ctx.isBusy() || state.saving || !state.draft || !dirty() || validation(state.draft)) return;
- state.draft.relatedLinks = state.draft.relatedLinks.map(link => ({title: link.title.trim(), url: link.url.trim()})).filter(link => link.url);
+ state.draft.relatedLinks = state.draft.relatedLinks.map((link) => ({ title: link.title.trim(), url: link.url.trim() })).filter((link) => link.url);
  ctx.busy(true, '正在保存配置…');
  state.saving = true;
  state.saveError = '';
  try {
-  const saved = await API.Save(state.editingId, state.draft) as App;
+  const saved = (await API.Save(state.editingId, state.draft)) as App;
   state.open = null;
   resetSheet();
   ctx.busy(false);
@@ -254,15 +286,28 @@ export async function prepare(): Promise<void> {
  state.createError = '';
  let prepared: NewAppInfo | null = null;
  try {
-  prepared = await API.PrepareNewApp(state.createSource.trim(), state.createName.trim()) as NewAppInfo;
+  prepared = (await API.PrepareNewApp(state.createSource.trim(), state.createName.trim())) as NewAppInfo;
   if (state.pendingNew) await API.DiscardNewApp(state.pendingNew.token);
   state.pendingNew = prepared;
   const name = prepared.name || state.createName.trim();
-  state.draft = {uuid: prepared.token, title: name, type: 'GUI', entry: (prepared.entries || [])[0] || '', category: '', description: '', runAsAdmin: false, relatedLinks: [], updater: [], lastUpdateAt: ''};
+  state.draft = {
+   uuid: prepared.token,
+   title: name,
+   type: 'GUI',
+   entry: (prepared.entries || [])[0] || '',
+   category: '',
+   description: '',
+   runAsAdmin: false,
+   relatedLinks: [],
+   updater: [],
+   lastUpdateAt: ''
+  };
   state.newEntryValid = false;
   state.createStep = 2;
   ctx.busy(false);
-  void nextTick(() => {void checkNewEntry();});
+  void nextTick(() => {
+   void checkNewEntry();
+  });
  } catch (error) {
   if (prepared) await API.DiscardNewApp(prepared.token).catch(console.error);
   state.createError = error instanceof Error ? error.message : String(error);
@@ -276,13 +321,16 @@ export async function submitCreate(): Promise<void> {
  const ctx = context();
  if (ctx.isBusy() || state.saving || !state.draft || !state.pendingNew) return;
  const error = createValidation();
- if (error) {state.createError = error;return;}
+ if (error) {
+  state.createError = error;
+  return;
+ }
  const token = state.pendingNew.token;
  ctx.busy(true, '正在部署新应用…');
  state.saving = true;
  state.createError = '';
  try {
-  const saved = await API.CommitNewApp(token, state.draft) as App;
+  const saved = (await API.CommitNewApp(token, state.draft)) as App;
   state.pendingNew = null;
   state.open = null;
   resetSheet();
@@ -300,14 +348,17 @@ export async function submitCreate(): Promise<void> {
 export async function chooseCategory(value: string): Promise<void> {
  if (!state.draft) return;
  const previous = state.draft.category;
- if (value !== newCategoryOption) {state.draft.category = value;return;}
+ if (value !== newCategoryOption) {
+  state.draft.category = value;
+  return;
+ }
  const name = await context().newCategory();
  state.draft.category = name || previous;
 }
 
 export function addLink(): void {
  if (!state.draft) return;
- state.draft.relatedLinks.push({title: '', url: ''});
+ state.draft.relatedLinks.push({ title: '', url: '' });
  void nextTick(() => {
   const input = document.querySelector<HTMLInputElement>('#sheet-body [data-link="' + (state.draft!.relatedLinks.length - 1) + '"][data-key="title"]');
   input?.focus();
@@ -356,11 +407,17 @@ export async function pickSource(): Promise<void> {
  }
 }
 export function suggestedName(source: string): string {
- const base = source.replace(/[\\/]+$/, '').split(/[\\/]/).pop() || '';
+ const base =
+  source
+   .replace(/[\\/]+$/, '')
+   .split(/[\\/]/)
+   .pop() || '';
  const withoutExtension = base.replace(/\.(zip|7z)$/i, '');
  return withoutExtension.trim() || 'app';
 }
-export function createNameChanged(): void {state.createNameEdited = true;}
+export function createNameChanged(): void {
+ state.createNameEdited = true;
+}
 export function createSourceChanged(): void {
  if (!state.createNameEdited) state.createName = suggestedName(state.createSource);
 }
@@ -385,14 +442,22 @@ export async function toggleAutoStart(): Promise<void> {
   context().toast(error instanceof Error ? error.message : String(error));
  }
 }
-export function openLibrary(): void {void API.OpenLibrary().catch(error => context().toast(error instanceof Error ? error.message : String(error)));}
-export function openEntryFolder(): void {void API.OpenDirectory(state.editingId).catch(error => context().toast(error instanceof Error ? error.message : String(error)));}
-export function editProfile(): void {void API.EditProfile(state.editingId).catch(error => context().toast(error instanceof Error ? error.message : String(error)));}
-export function openLink(url: string): void {void API.OpenLink(url).catch(error => context().toast(error instanceof Error ? error.message : String(error)));}
+export function openLibrary(): void {
+ void API.OpenLibrary().catch((error) => context().toast(error instanceof Error ? error.message : String(error)));
+}
+export function openEntryFolder(): void {
+ void API.OpenDirectory(state.editingId).catch((error) => context().toast(error instanceof Error ? error.message : String(error)));
+}
+export function editProfile(): void {
+ void API.EditProfile(state.editingId).catch((error) => context().toast(error instanceof Error ? error.message : String(error)));
+}
+export function openLink(url: string): void {
+ void API.OpenLink(url).catch((error) => context().toast(error instanceof Error ? error.message : String(error)));
+}
 export async function quit(): Promise<void> {
  const ctx = context();
- if (!await API.Confirm('确定退出 App Runner 吗？退出后需要重新启动程序。')) return;
- await API.QuitApp().catch(error => ctx.toast(error instanceof Error ? error.message : String(error)));
+ if (!(await API.Confirm('确定退出 App Runner 吗？退出后需要重新启动程序。'))) return;
+ await API.QuitApp().catch((error) => ctx.toast(error instanceof Error ? error.message : String(error)));
 }
 export async function openUpdate(): Promise<void> {
  const ctx = context();

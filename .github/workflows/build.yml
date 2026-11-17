@@ -41,18 +41,24 @@ jobs:
         working-directory: frontend
         run: npm ci
 
-      - name: Frontend unit tests and bundle
+      - name: Frontend lint, formatting, unit tests and bundle
         working-directory: frontend
         run: |
+          npm run lint
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          npm run format:check
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           npm test
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           npm run build
 
       - name: Vet and test the Go service
+        # Scoped to the module's own packages: frontend/node_modules is present by
+        # now and may ship unrelated Go files that would otherwise be picked up.
         run: |
-          go vet ./...
+          go vet . ./internal/...
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          go test ./...
+          go test . ./internal/...
 
       # The icon, manifest and version metadata of the EXE come from a generated
       # .syso file, which needs the pinned Wails CLI.

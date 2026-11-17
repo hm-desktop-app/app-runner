@@ -22,7 +22,7 @@ func OpenDirectory(path string) error {
 	go cmd.Wait()
 	return nil
 }
-func EditProfile(path string) error          { return OpenDirectory(path) }
+func EditProfile(path string) error { return OpenDirectory(path) }
 func Launch(a App) error {
 	if a.RunAsAdmin {
 		return errors.New("管理员启动目前仅支持 Windows")

@@ -74,6 +74,7 @@ func sourcePath(path string) (string, os.FileInfo, error) {
 	}
 	return absolute, info, nil
 }
+
 var entryExtensions = map[string]bool{
 	".exe": true, ".bat": true, ".cmd": true, ".ps1": true, ".py": true, ".jar": true,
 }
