@@ -56,6 +56,7 @@ type = "GUI"            # GUI | CLI
 entry = "editor.exe"    # 相对 content，或以 re: 开头按文件名匹配
 run_as_admin = false
 updater = ["PIN:settings", "RMC", "UNPKG"]
+last_update_at = "2026-11-17T10:00:00+08:00"  # 安装更新后写入，建议更新据此判定
 
 [[related_links]]
 title = "官网"
@@ -65,7 +66,7 @@ url = "https://example.com"
 - 扫描为缺失、重复或非法的 UUID 生成 v4 身份并写回；配置损坏时显示目录名与错误，不覆盖原文件。
 - 保存通过临时文件替换，保留可解析的未知字段，但会重排 TOML 并移除注释；只读文件保存失败时保留界面编辑。
 - `entry` 必须指向 `content` 内的普通文件，越界或缺失即入口无效；`re:` 使用 Go RE2 正则，不支持后行断言与反向引用。
-- GUI 应用经 Shell 启动，CLI 应用经 `pwsh -NoExit` 启动（缺失时用 Windows PowerShell），入口目录加入 PATH；管理员选项只提升被启动的应用。
+- GUI 应用经 Shell 启动；CLI 应用不执行入口，只打开 `pwsh -NoExit`（缺失时用 Windows PowerShell）并把入口目录加入 PATH，工作目录为用户目录；管理员选项只提升被启动的应用。
 - 图标缺失、损坏或超过 4 MiB 时使用字母占位。
 
 ## 配置与持久化
@@ -74,7 +75,7 @@ url = "https://example.com"
 
 | 位置 | 内容 |
 | --- | --- |
-| `<应用库>\<应用>\app.toml` | 分类、备注、入口、管理员、链接、更新操作与 UUID |
+| `<应用库>\<应用>\app.toml` | 分类、备注、入口、管理员、链接、更新操作、UUID 与上次更新时间 |
 | `<应用库>\state.json` | 最近使用的 UUID、标题和最后启动时间 |
 | `%APPDATA%\app-runner.exe\EBWebView\` | 界面偏好：`app-runner-theme`、`app-runner-autohide`、`app-runner-categories:<应用库路径>` |
 | `%LOCALAPPDATA%\app-runner\instance.lock` | 单实例锁，进程退出后由系统释放 |
@@ -100,9 +101,9 @@ url = "https://example.com"
 | 托盘菜单 | 显示窗口、退出 |
 | 再次启动 | 唤回已运行实例 |
 
-应用库的筛选项为全部应用、最近使用（7 天内启动）、可更新和分类，排序支持最近使用、名称（中文与数字自然排序）和更新时间。分类为一级目录，未填写时归入“未分类”。
+应用库的筛选项为全部应用、最近使用（7 天内启动）、建议更新和分类，排序支持最近使用、名称（中文与数字自然排序）和更新时间。建议更新表示 `app.toml` 记录的 `last_update_at` 已超过 30 天；没有该字段的旧应用回退到 `content` 目录的修改时间。分类为一级目录，未填写时归入“未分类”。
 
-拖动应用行到侧栏分类即修改分类，拖到“＋ 新建分类”可新建并移入；右键分类可重命名或删除，删除后成员回到“未分类”，应用文件与配置保留。编辑面板可修改名称、分类、备注、类型、入口、管理员、链接和更新操作，行尾按钮提供运行与编辑。
+拖动应用行到侧栏分类即修改分类，拖到“＋ 新建分类”可新建并移入；右键分类可重命名或删除，删除后成员回到“未分类”，应用文件与配置保留。编辑面板可修改名称、分类、备注、类型、入口、管理员、链接和更新操作，顶部显示入口文件的版本号，行尾按钮提供运行与编辑。
 
 ## 新建与更新
 
@@ -116,7 +117,7 @@ url = "https://example.com"
 | `RMC` | 无 | 清除未固定的旧内容 |
 | `UNPKG` | 无 | 解包压缩包或复制目录，覆盖安装内容 |
 
-更新前完整复制 `content` 到 `content.bak`，失败时保留备份并给出恢复路径。ZIP 使用标准库，7z 使用内置 `github.com/bodgit/sevenzip`，不调用外部解压工具；拒绝越界路径和符号链接，单层包装目录自动去除，不支持加密压缩包。
+替换更新把旧内容整体移动到 `content.bak`，覆盖更新只备份将被覆盖的文件；失败时保留备份并给出恢复路径。安装完成后把当前时间写入 `app.toml` 的 `last_update_at`。ZIP 使用标准库，7z 使用内置 `github.com/bodgit/sevenzip`，不调用外部解压工具；拒绝越界路径和符号链接，单层包装目录自动去除，不支持加密压缩包。
 
 ## 验证
 
@@ -128,7 +129,7 @@ npm --prefix frontend run check
 wails3 build
 ```
 
-Go 测试覆盖扫描容错、暂存回收、UUID、只读配置、保存、最近使用、入口、备份、PIN 边界、ZIP / 7z 和失败保留；前端测试覆盖筛选排序、关键字与拼音搜索、时间边界、草稿隔离与更新参数校验。
+Go 测试覆盖扫描容错、暂存回收、UUID、只读配置、保存、最近使用、入口、更新时间、备份、PIN 边界、ZIP / 7z 和失败保留；前端测试覆盖筛选排序、关键字与拼音搜索、时间边界、草稿隔离与更新参数校验。
 
 无界面扫描：
 
@@ -154,7 +155,8 @@ Windows 使用已安装的 Edge，其他平台需先 `npx playwright install chr
 main.go                       入口、窗口、托盘、单实例、自检
 launcherservice.go            Wails 服务、原生对话框与文件选择
 internal/launcher/            扫描、配置、启动、使用记录、更新
-frontend/src/main.ts          界面与交互
+frontend/src/main.ts          应用库与命令中心
+frontend/src/detail.ts        编辑、新建与设置面板
 frontend/src/state.ts         筛选、排序、草稿与校验
 frontend/src/style.css        界面样式
 frontend/bindings/            Wails 生成的类型绑定
