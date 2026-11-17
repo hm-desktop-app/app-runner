@@ -155,8 +155,9 @@ Windows 使用已安装的 Edge，其他平台需先 `npx playwright install chr
 main.go                       入口、窗口、托盘、单实例、自检
 launcherservice.go            Wails 服务、原生对话框与文件选择
 internal/launcher/            扫描、配置、启动、使用记录、更新
-frontend/src/main.ts          应用库与命令中心
-frontend/src/sheet.ts         编辑、新建与设置面板的 Vue 挂载入口
+frontend/src/main.ts          挂载 Vue 应用
+frontend/src/app/             命令中心、应用库与共享状态
+frontend/src/sheet.ts         编辑、新建与设置面板的挂载入口
 frontend/src/sheet/           面板状态与 Vue 组件
 frontend/src/state.ts         筛选、排序、草稿与校验
 frontend/src/style.css        界面样式

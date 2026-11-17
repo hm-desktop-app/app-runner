@@ -7,54 +7,8 @@
  <link rel="icon" href="/appicon.png">
 </head>
 <body>
-<div id="app">
-
- <div class="window-body">
-  <section class="view cmd-view is-active" id="cmd-view" aria-label="命令中心">
-   <div class="cmd-search">
-    <span class="cmd-search-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.2-3.2"/></svg></span>
-    <input id="cmd-search" placeholder="搜索名称、分类、备注或入口；支持拼音；输入 > 只看命令" autocomplete="off" spellcheck="false" role="combobox" aria-expanded="true" aria-controls="cmd-results" aria-label="搜索应用或命令">
-    <kbd class="esc">Esc</kbd>
-    <button type="button" class="win-close" id="cmd-close" title="收起窗口" aria-label="收起窗口"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
-   </div>
-   <div class="cmd-body">
-    <div class="cmd-results" id="cmd-results" role="listbox" aria-label="搜索结果"></div>
-    <aside class="cmd-peek" id="cmd-peek" aria-label="预览"></aside>
-   </div>
-   <footer class="cmd-foot">
-    <div class="cmd-stats" id="cmd-stats"></div>
-    <div class="cmd-keys"><span><kbd>↑</kbd><kbd>↓</kbd> 选择</span><span><kbd>↵</kbd> 运行</span><span><kbd>E</kbd> 编辑</span><span><kbd>Ctrl K</kbd> 聚焦</span></div>
-   </footer>
-  </section>
-
-  <section class="view lib-view" id="lib-view" aria-label="应用库">
-   <div class="lib-toolbar">
-   <button type="button" class="lib-back" id="lib-back" title="返回命令中心 · Esc" aria-label="返回命令中心"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m14 6-6 6 6 6"/></svg></button>
-    <div class="lib-title"><h2>应用库</h2><p id="lib-count"></p></div>
-    <label class="lib-search"><span aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.2-3.2"/></svg></span><input id="lib-search" placeholder="搜索名称、分类、备注或入口；支持拼音…" autocomplete="off" spellcheck="false" aria-label="搜索应用"></label>
-    <div class="lib-tools">
-     <select class="sort" id="lib-sort" aria-label="排序方式"><option value="recent">最近使用</option><option value="name">名称</option><option value="modified">更新时间</option></select>
-     <button type="button" class="btn primary" id="new-app"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>新建应用</button>
-     <button type="button" class="win-close" id="lib-close" title="收起窗口" aria-label="收起窗口"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
-    </div>
-   </div>
-   <div class="lib-body">
-    <aside class="lib-filters" id="lib-filters" aria-label="筛选"></aside>
-    <div class="lib-table-pane">
-     <div class="table-scroll">
-      <table class="lib-table">
-       <thead><tr><th>应用</th><th>分类</th><th>上次使用</th><th>状态</th><th class="action-head"></th></tr></thead>
-       <tbody id="lib-table"></tbody>
-      </table>
-     </div>
-     <div class="lib-selection" id="lib-selection"></div>
-    </div>
-   </div>
-  </section>
-
-  <div id="sheet-root"></div>
- </div>
-</div>
+<div id="app"></div>
+<div id="sheet-root"></div>
 
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
 <div class="activity" id="activity" role="status" popover="manual"><span class="spinner" aria-hidden="true"></span><span id="activity-text"></span></div>

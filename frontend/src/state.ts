@@ -46,8 +46,9 @@ export function visibleApps(apps: App[], query: string, mode: SortMode): App[] {
 }
 function timestamp(value: string | null): number {return value ? Date.parse(value) || 0 : 0}
 export function profileOf(app: App): Profile {
- return structuredClone({uuid: app.uuid, category: app.category || '', description: app.description || '', title: app.title, type: app.type, entry: app.entry,
-  runAsAdmin: app.runAsAdmin, relatedLinks: app.relatedLinks || [], updater: app.updater || [], lastUpdateAt: app.lastUpdateAt || ''});
+ return {uuid: app.uuid, category: app.category || '', description: app.description || '', title: app.title, type: app.type, entry: app.entry,
+  runAsAdmin: app.runAsAdmin, relatedLinks: (app.relatedLinks || []).map(link => ({title: link.title, url: link.url})),
+  updater: [...(app.updater || [])], lastUpdateAt: app.lastUpdateAt || ''};
 }
 export function validation(profile: Profile): string {
  if (/[\r\n\0]/.test(profile.category)) return '分类名称不能包含换行或空字符';
