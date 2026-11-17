@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 func zipPackage(t *testing.T, path string, files map[string]string) {
@@ -57,6 +58,18 @@ func TestUpdateReplacesContentAndKeepsPinnedPaths(t *testing.T) {
 	}
 	if read(t, filepath.Join(content, "app.exe")) != "new version" || read(t, filepath.Join(content, "settings", "user.json")) != "user data" {
 		t.Fatal("installation/pin mismatch")
+	}
+	// 更新成功后把时间写入 app.toml：建议更新只看这个字段。
+	profileText := read(t, filepath.Join(dir, "app.toml"))
+	if !strings.Contains(profileText, "last_update_at = ") {
+		t.Fatalf("update did not record last_update_at: %s", profileText)
+	}
+	stamp, parseErr := time.Parse(time.RFC3339, result.App.LastUpdateAt)
+	if parseErr != nil || time.Since(stamp) > time.Hour {
+		t.Fatalf("last_update_at is not a fresh RFC3339 timestamp: %q", result.App.LastUpdateAt)
+	}
+	if rescanned := scan(t, NewStore(root)).Apps[0]; rescanned.LastUpdateAt != result.App.LastUpdateAt {
+		t.Fatalf("scan did not read back last_update_at: %q", rescanned.LastUpdateAt)
 	}
 	for _, name := range []string{"obsolete.txt", "settings-other", "Release-v2"} {
 		absent(t, filepath.Join(content, name))

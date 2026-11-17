@@ -202,6 +202,7 @@ type Settings struct {
 	Hotkey      string `json:"hotkey"`
 	HotkeyError string `json:"hotkeyError"`
 	Library     string `json:"library"`
+	AutoStart   bool   `json:"autoStart"`
 }
 
 // hotkeyAccelerator is the system-wide shortcut that reveals or hides the main window.
@@ -211,7 +212,13 @@ func (s *LauncherService) Settings() Settings {
 	s.hotkeyMu.Lock()
 	hotkeyErr := s.hotkeyErr
 	s.hotkeyMu.Unlock()
-	return Settings{Hotkey: hotkeyAccelerator, HotkeyError: hotkeyErr, Library: s.store.Library()}
+	autoStart, _ := launcher.AutoStartEnabled()
+	return Settings{Hotkey: hotkeyAccelerator, HotkeyError: hotkeyErr, Library: s.store.Library(), AutoStart: autoStart}
+}
+
+// SetAutoStart 开关登录时自动启动（写入当前用户的 Run 项）。
+func (s *LauncherService) SetAutoStart(enabled bool) error {
+	return launcher.SetAutoStart(enabled)
 }
 
 func (s *LauncherService) setHotkeyError(message string) {

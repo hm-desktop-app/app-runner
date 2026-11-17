@@ -3,7 +3,9 @@ package launcher
 import (
 	"encoding/base64"
 	"encoding/binary"
+	"errors"
 	"fmt"
+	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
@@ -49,26 +51,40 @@ func encodedCommand(script string) string {
 	return base64.StdEncoding.EncodeToString(bytes)
 }
 
-func Launch(a App) error {
-	if a.Type != "GUI" && a.Type != "CLI" {
-		return fmt.Errorf("无效的应用类型：%s", a.Type)
-	}
+// launchCommand 计算启动所需的可执行文件、参数与工作目录。
+// 命令行应用不执行入口，只打开注入了入口目录的 shell，工作目录取用户目录。
+func launchCommand(a App) (file, args, cwd string, err error) {
 	entry, err := ResolveEntry(a, a.Entry)
 	if err != nil {
-		return err
+		return "", "", "", err
 	}
-	file, args := entry, ""
-	cwd := filepath.Dir(entry)
+	file, cwd = entry, filepath.Dir(entry)
 	if a.Type == "CLI" {
 		file, err = exec.LookPath("pwsh.exe")
 		if err != nil {
 			file, err = exec.LookPath("powershell.exe")
 		}
 		if err != nil {
-			return fmt.Errorf("找不到 PowerShell：%w", err)
+			return "", "", "", fmt.Errorf("找不到 PowerShell：%w", err)
 		}
-		script := "$env:Path = " + psQuote(cwd+";") + " + $env:Path; & " + psQuote(entry)
+		script := "$env:Path = " + psQuote(cwd+";") + " + $env:Path"
 		args = "-NoExit -EncodedCommand " + encodedCommand(script)
+		home, homeErr := os.UserHomeDir()
+		if homeErr != nil {
+			return "", "", "", fmt.Errorf("无法确定用户目录：%w", homeErr)
+		}
+		cwd = home
+	}
+	return file, args, cwd, nil
+}
+
+func Launch(a App) error {
+	if a.Type != "GUI" && a.Type != "CLI" {
+		return fmt.Errorf("无效的应用类型：%s", a.Type)
+	}
+	file, args, cwd, err := launchCommand(a)
+	if err != nil {
+		return err
 	}
 	verb := "open"
 	if a.RunAsAdmin {
@@ -90,6 +106,35 @@ func ShowStartupError(message string) {
 	text, _ := windows.UTF16PtrFromString(message)
 	title, _ := windows.UTF16PtrFromString("App Runner - 无法启动")
 	windows.MessageBox(0, text, title, windows.MB_OK|windows.MB_ICONERROR)
+}
+
+// finalPath 一次打开拿到路径的最终形态，替代逐段解析的 filepath.EvalSymlinks。
+func finalPath(path string) (string, error) {
+	pointer, err := windows.UTF16PtrFromString(path)
+	if err != nil {
+		return "", err
+	}
+	handle, err := windows.CreateFile(pointer, 0,
+		windows.FILE_SHARE_READ|windows.FILE_SHARE_WRITE|windows.FILE_SHARE_DELETE,
+		nil, windows.OPEN_EXISTING, windows.FILE_FLAG_BACKUP_SEMANTICS, 0)
+	if err != nil {
+		return "", err
+	}
+	defer windows.CloseHandle(handle)
+	size, _ := windows.GetFinalPathNameByHandle(handle, nil, 0, 0)
+	if size == 0 {
+		return "", errors.New("无法解析路径：" + path)
+	}
+	buffer := make([]uint16, size)
+	count, err := windows.GetFinalPathNameByHandle(handle, &buffer[0], size, 0)
+	if err != nil {
+		return "", err
+	}
+	result := windows.UTF16ToString(buffer[:count])
+	if len(result) >= 4 && strings.HasPrefix(result, `\\?\`) {
+		result = result[4:]
+	}
+	return result, nil
 }
 
 func fileVersion(path string) string {

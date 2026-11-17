@@ -52,13 +52,13 @@ func ResolveEntry(a App, entry string) (string, error) {
 }
 
 func checkedFile(root, path string) (string, error) {
-	actual, err := filepath.EvalSymlinks(path)
-	if err != nil {
-		return "", errors.New("入口文件不存在：" + path)
-	}
-	actualRoot, err := filepath.EvalSymlinks(root)
+	actualRoot, err := finalPath(root)
 	if err != nil {
 		return "", err
+	}
+	actual, err := finalPath(path)
+	if err != nil {
+		return "", errors.New("入口文件不存在：" + path)
 	}
 	relative, err := filepath.Rel(actualRoot, actual)
 	if err != nil || relative == ".." || strings.HasPrefix(relative, ".."+string(filepath.Separator)) {

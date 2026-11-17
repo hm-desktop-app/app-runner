@@ -23,6 +23,7 @@ type Profile struct {
 	RunAsAdmin   bool     `json:"runAsAdmin" toml:"run_as_admin"`
 	RelatedLinks []Link   `json:"relatedLinks" toml:"related_links"`
 	Updater      []string `json:"updater" toml:"updater"`
+	LastUpdateAt string   `json:"lastUpdateAt" toml:"last_update_at"`
 }
 
 type App struct {

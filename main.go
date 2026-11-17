@@ -63,6 +63,8 @@ func main() {
 	}
 	defer primary.Close()
 	defer store.CleanupImports()
+	// 应用库扫描与 WebView2 的初始化并行进行，前端首次取列表时直接复用预热结果。
+	go store.Preload()
 	service := &LauncherService{store: store}
 	var window *application.WebviewWindow
 	show := func() {

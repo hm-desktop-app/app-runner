@@ -1,7 +1,7 @@
 import './style.css';
 import {Events} from '@wailsio/runtime';
 import * as API from '../bindings/app-runner/launcherservice';
-import {visibleApps, rankApps, recentApps, filterLibrary, filterKey, parseFilter, groupApps, categoryOf, relativeTime, statusOf} from './state';
+import {visibleApps, rankApps, recentApps, filterLibrary, filterKey, parseFilter, groupApps, categoryOf, relativeTime, statusOf, suggestsUpdate} from './state';
 import type {App, LibraryFilter, SortMode} from './state';
 import {$, $$, escape, icons, tile, statusName, iconFailed} from './ui';
 import * as detail from './detail';
@@ -55,7 +55,7 @@ function saveCategories(): void {
 function categoryNames(): string[] {
  return groupApps(apps, '', 'name', extraCategories).map(group => group.category).filter(Boolean) as string[];
 }
-function updatable(): number {return apps.filter(app => (app.updater || []).length > 0).length;}
+function suggested(): number {return apps.filter(app => suggestsUpdate(app)).length;}
 function currentApp(id = librarySelected): App | undefined {return apps.find(app => app.uuid === id);}
 
 /* ---------- chrome ---------- */
@@ -170,7 +170,7 @@ function renderCommand(): void {
  if (!items.length) html = '<div class="cmd-empty">没有匹配“' + escape(commandsOnly ? query.slice(1).trim() : query) + '”<br>试试应用名称、分类、备注、入口，或用 > 前缀只搜命令。</div>';
  $('#cmd-results').innerHTML = html;
  renderPeek(items);
- $('#cmd-stats').innerHTML = '<b>' + apps.length + ' 个应用</b><span>·</span><span>' + updatable() + ' 个可更新</span>';
+ $('#cmd-stats').innerHTML = '<b>' + apps.length + ' 个应用</b><span>·</span><span>' + suggested() + ' 个建议更新</span>';
 }
 function syncCommandSelection(): void {
  for (const row of $$<HTMLElement>('#cmd-results .result')) {
@@ -191,7 +191,7 @@ function renderPeek(items: Item[] = commandItems()): void {
  }
  const app = item.app, status = statusName(statusOf(app));
  const runnable = app.entryValid && ['GUI','CLI'].includes(app.type);
- const chips = '<span class="chip">' + escape(categoryOf(app) || '未分类') + '</span><span class="chip ' + status.tone + '">' + status.label + '</span>' + (app.updater.length ? '<span class="chip update">可更新</span>' : '') + (app.runAsAdmin ? '<span class="chip">管理员</span>' : '');
+ const chips = '<span class="chip">' + escape(categoryOf(app) || '未分类') + '</span><span class="chip ' + status.tone + '">' + status.label + '</span>' + (suggestsUpdate(app) ? '<span class="chip update">建议更新</span>' : '') + (app.runAsAdmin ? '<span class="chip">管理员</span>' : '');
  const update = app.updater.length ? '<button type="button" class="update-box" data-update="' + escape(app.uuid) + '">' + icons.update + '<b>已配置更新方式</b><span>安装更新 ›</span></button>' : '';
  const links = app.relatedLinks.filter(link => link.url.trim()).map(link => '<button type="button" class="peek-link" data-open-url="' + escape(link.url) + '"><span>' + escape(link.title || link.url) + '</span>' + icons.external + '</button>').join('');
  const linksBlock = links ? '<div class="peek-links"><span class="peek-note-title">相关链接</span>' + links + '</div>' : '';
@@ -254,7 +254,7 @@ function renderFilters(): void {
  const browsing = '<div class="filter-group"><div class="filter-title">浏览</div>'
   + filterItem('all', '全部应用', icons.grid, apps.length, active === 'all')
   + filterItem('recent', '最近使用', icons.clock, filterLibrary(apps, {kind: 'recent'}, '', 'name').length, active === 'recent')
-  + filterItem('updatable', '可更新', icons.update, filterLibrary(apps, {kind: 'updatable'}, '', 'name').length, active === 'updatable')
+  + filterItem('suggested', '建议更新', icons.update, filterLibrary(apps, {kind: 'suggested'}, '', 'name').length, active === 'suggested')
   + '</div>';
  const names = categoryNames();
  const categories = '<div class="filter-group"><div class="filter-title">分类</div>'
@@ -355,7 +355,7 @@ function renderSelection(): void {
  const app = currentApp();
  box.classList.toggle('has', !!app);
  if (!app) {
-  box.innerHTML = '<div class="sel-summary"><b>' + apps.length + ' 个应用</b><span>·</span><span>' + updatable() + ' 个可更新</span></div><div class="sel-hints"><span><kbd>↑</kbd><kbd>↓</kbd> 选择</span><span><kbd>↵</kbd> 运行</span><span><kbd>E</kbd> 编辑</span><span><kbd>Esc</kbd> 返回</span></div>';
+  box.innerHTML = '<div class="sel-summary"><b>' + apps.length + ' 个应用</b><span>·</span><span>' + suggested() + ' 个建议更新</span></div><div class="sel-hints"><span><kbd>↑</kbd><kbd>↓</kbd> 选择</span><span><kbd>↵</kbd> 运行</span><span><kbd>E</kbd> 编辑</span><span><kbd>Esc</kbd> 返回</span></div>';
   return;
  }
  const status = statusName(statusOf(app));

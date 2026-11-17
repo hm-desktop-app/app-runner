@@ -1,9 +1,9 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {visibleApps,profileOf,validation,groupApps,suggestedAppName,statusOf,relativeTime,recentApps,rankApps,filterLibrary,filterKey,parseFilter} from './state.ts';
+import {visibleApps,profileOf,validation,groupApps,suggestedAppName,statusOf,relativeTime,recentApps,rankApps,filterLibrary,filterKey,parseFilter,suggestsUpdate} from './state.ts';
 import type {App} from './state.ts';
 
-const item = (title: string, extras: Partial<App> = {}): App => ({uuid:title,title,category:'',description:'',type:'GUI',entry:'app.exe',runAsAdmin:false,relatedLinks:[],updater:[],directory:title,modified:null,lastUsed:null,version:'',entryValid:true,profileError:'',...extras});
+const item = (title: string, extras: Partial<App> = {}): App => ({uuid:title,title,category:'',description:'',type:'GUI',entry:'app.exe',runAsAdmin:false,relatedLinks:[],updater:[],directory:title,modified:null,lastUpdateAt:'',lastUsed:null,version:'',entryValid:true,profileError:'',...extras});
 test('sorts timestamps descending, sends unknown dates last, and filters titles', () => {
  const apps = [item('Tool 10'),item('Tool 2',{modified:'2026-10-10T00:00:00Z'}),item('Other',{modified:'2026-10-11T00:00:00Z'})];
  assert.deepEqual(visibleApps(apps,' tool ','name').map(a=>a.title),['Tool 2','Tool 10']);
@@ -89,16 +89,28 @@ test('command ranking prefers title matches and falls back to usage',()=>{
  assert.deepEqual(rankApps(apps,'nothing-matches'),[]);
 });
 
-test('library filters scope by window, updater and category before searching',()=>{
+test('library filters scope by window, suggested updates and category before searching',()=>{
  const now = Date.parse('2026-10-11T00:00:00Z'), ago = (days: number) => new Date(now-days*86400000).toISOString();
- const apps=[item('Fresh',{lastUsed:ago(1)}),item('Stale',{lastUsed:ago(10)}),item('Update',{updater:['RMC'],category:'开发工具'}),item('Dev',{category:'开发工具'})];
- assert.deepEqual(filterLibrary(apps,{kind:'all'},'','name').map(a=>a.title),['Dev','Fresh','Stale','Update']);
+ const apps=[item('Fresh',{lastUsed:ago(1)}),item('Stale',{lastUsed:ago(10)}),item('Update',{updater:['RMC'],category:'开发工具',modified:ago(40)}),
+  item('Recent',{updater:['RMC'],modified:ago(2)}),item('NoUpdater',{modified:ago(40)}),item('Dev',{category:'开发工具'})];
+ assert.deepEqual(filterLibrary(apps,{kind:'all'},'','name').map(a=>a.title),['Dev','Fresh','NoUpdater','Recent','Stale','Update']);
  assert.deepEqual(filterLibrary(apps,{kind:'recent'},'','name',now).map(a=>a.title),['Fresh']);
- assert.deepEqual(filterLibrary(apps,{kind:'updatable'},'','name',now).map(a=>a.title),['Update']);
+ assert.deepEqual(filterLibrary(apps,{kind:'suggested'},'','name',now).map(a=>a.title),['Update']);
  assert.deepEqual(filterLibrary(apps,{kind:'category',name:'开发工具'},'','name',now).map(a=>a.title),['Dev','Update']);
  assert.deepEqual(filterLibrary(apps,{kind:'category',name:'开发工具'},'dev','name',now).map(a=>a.title),['Dev']);
  assert.equal(filterKey({kind:'category',name:'开发工具'}),'category:开发工具');
  assert.deepEqual(parseFilter('category:开发工具'),{kind:'category',name:'开发工具'});
- assert.deepEqual(parseFilter('updatable'),{kind:'updatable'});
+ assert.deepEqual(parseFilter('suggested'),{kind:'suggested'});
  assert.deepEqual(parseFilter('unknown'),{kind:'all'});
+});
+
+test('only apps with updater whose last update is a month old are suggested',()=>{
+ const now = Date.parse('2026-10-11T00:00:00Z'), ago = (days: number) => new Date(now-days*86400000).toISOString();
+ assert.equal(suggestsUpdate(item('NoUpdater',{lastUpdateAt:ago(40)}),now),false,'an app without updater cannot be suggested');
+ assert.equal(suggestsUpdate(item('Fresh',{updater:['RMC'],lastUpdateAt:ago(1)}),now),false,'under a month is not suggested');
+ assert.equal(suggestsUpdate(item('Recorded',{updater:['RMC'],lastUpdateAt:ago(60)}),now),true,'the recorded update time decides');
+ assert.equal(suggestsUpdate(item('Legacy',{updater:['RMC'],modified:ago(40)}),now),true,'legacy apps fall back to the content modification time');
+ assert.equal(suggestsUpdate(item('Both',{updater:['RMC'],modified:ago(400),lastUpdateAt:ago(1)}),now),false,'the recorded update time wins over file times');
+ assert.equal(suggestsUpdate(item('Boundary',{updater:['RMC'],lastUpdateAt:new Date(now-30*86400000).toISOString()}),now),true);
+ assert.equal(suggestsUpdate(item('Unknown',{updater:['RMC']}),now),false,'missing timestamps cannot be suggested');
 });

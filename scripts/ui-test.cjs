@@ -9,13 +9,15 @@ const root = path.resolve(__dirname,'..');
 const output = path.join(root,'selfcheck');
 const port = Number(process.env.UI_TEST_PORT || 9391);
 
-async function fixture(library,name,title,{updater=false,category='',description='测试备注'}={}) {
+async function fixture(library,name,title,{updater=false,category='',description='测试备注',stale=false}={}) {
  const dir = path.join(library,name);
  await fs.mkdir(path.join(dir,'content'),{recursive:true});
  await fs.writeFile(path.join(dir,'content','app.exe'),'test-only entry');
  const lines = ['title = "' + title + '"','type = "GUI"','entry = "app.exe"','description = "' + description + '"'];
  if (category) lines.push('category = "' + category + '"');
  lines.push('updater = ' + (updater ? '["PIN:settings", "RMC"]' : '[]'));
+ /* 建议更新按 app.toml 记录的更新时间判断 */
+ if (stale) lines.push('last_update_at = "' + new Date(Date.now() - 40 * 86400000).toISOString() + '"');
  lines.push('[[related_links]]','title = "官网"','url = "https://example.com"');
  await fs.writeFile(path.join(dir,'app.toml'),lines.join('\n') + '\n');
  return dir;
@@ -25,7 +27,7 @@ const text = file => fs.readFile(file,'utf8');
 async function main() {
  await fs.mkdir(output,{recursive:true});
  const library = await fs.mkdtemp(path.join(output,'ui-library-'));
- const alpha = await fixture(library,'alpha','Alpha Editor',{updater:true,category:'开发工具'});
+ const alpha = await fixture(library,'alpha','Alpha Editor',{updater:true,category:'开发工具',stale:true});
  await fs.copyFile(path.join(root,'build','windows','icon.ico'),path.join(alpha,'app.ico'));
  const beta = await fixture(library,'beta','Beta Terminal',{category:'工具'});
  await fs.writeFile(path.join(beta,'app.ico'),'invalid icon bytes for fallback test');
@@ -152,14 +154,14 @@ async function main() {
   assert.equal(await page.locator('#lib-close').count(),1,'the library has no close button');
   assert.equal(await page.locator('#lib-table tr[data-id]').count(),22);
   assert.equal(await page.locator('.filter-item[data-filter="all"] .count').textContent(),'22');
-  assert.equal(await page.locator('.filter-item[data-filter="updatable"] .count').textContent(),'1');
-  await page.locator('.filter-item[data-filter="updatable"]').click();
+  assert.equal(await page.locator('.filter-item[data-filter="suggested"] .count').textContent(),'1');
+  await page.locator('.filter-item[data-filter="suggested"]').click();
   assert.equal(await page.locator('#lib-table tr[data-id]').count(),1);
   assert.equal(await page.locator('#lib-table tr[data-id]').first().textContent().then(value => value.includes('Alpha Editor')),true);
   await filterItem('all').click();
   assert.equal(await page.locator('#lib-table tr[data-id]').count(),22);
   await page.evaluate(() => {globalThis.__rowNodes = Array.from(document.querySelectorAll('#lib-table tr[data-id]'));});
-  await filterItem('updatable').click();
+  await filterItem('suggested').click();
   await filterItem('all').click();
   assert.equal(await page.evaluate(() => globalThis.__rowNodes.every(node => document.querySelector('#lib-table').contains(node))),true,'filtering rebuilt unchanged rows');
 

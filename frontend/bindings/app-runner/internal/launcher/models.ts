@@ -12,6 +12,7 @@ export interface App {
     "runAsAdmin": boolean;
     "relatedLinks": Link[] | null;
     "updater": string[] | null;
+    "lastUpdateAt": string;
     "directory": string;
     "modified": string | null;
     "lastUsed": string | null;
@@ -43,6 +44,7 @@ export interface Profile {
     "runAsAdmin": boolean;
     "relatedLinks": Link[] | null;
     "updater": string[] | null;
+    "lastUpdateAt": string;
 }
 
 export interface Snapshot {

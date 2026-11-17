@@ -3,7 +3,7 @@ import {pinyin} from 'pinyin-pro';
 export interface Link {title: string; url: string}
 export interface Profile {
  uuid: string; category: string; description: string; title: string; type: string; entry: string; runAsAdmin: boolean;
- relatedLinks: Link[]; updater: string[];
+ relatedLinks: Link[]; updater: string[]; lastUpdateAt: string;
 }
 export interface App extends Profile {
  directory: string; modified: string | null; lastUsed: string | null;
@@ -47,7 +47,7 @@ export function visibleApps(apps: App[], query: string, mode: SortMode): App[] {
 function timestamp(value: string | null): number {return value ? Date.parse(value) || 0 : 0}
 export function profileOf(app: App): Profile {
  return structuredClone({uuid: app.uuid, category: app.category || '', description: app.description || '', title: app.title, type: app.type, entry: app.entry,
-  runAsAdmin: app.runAsAdmin, relatedLinks: app.relatedLinks || [], updater: app.updater || []});
+  runAsAdmin: app.runAsAdmin, relatedLinks: app.relatedLinks || [], updater: app.updater || [], lastUpdateAt: app.lastUpdateAt || ''});
 }
 export function validation(profile: Profile): string {
  if (/[\r\n\0]/.test(profile.category)) return '分类名称不能包含换行或空字符';
@@ -138,22 +138,30 @@ export function rankApps(apps: App[], query: string, limit = 0): App[] {
  return limit > 0 ? ranked.slice(0, limit) : ranked;
 }
 
-export type LibraryFilter = {kind: 'all'} | {kind: 'recent'} | {kind: 'updatable'} | {kind: 'category'; name: string};
+export type LibraryFilter = {kind: 'all'} | {kind: 'recent'} | {kind: 'suggested'} | {kind: 'category'; name: string};
 export function filterKey(filter: LibraryFilter): string {
  return filter.kind === 'category' ? 'category:' + filter.name : filter.kind;
 }
 export function parseFilter(value: string): LibraryFilter {
  if (value === 'recent') return {kind: 'recent'};
- if (value === 'updatable') return {kind: 'updatable'};
+ if (value === 'suggested') return {kind: 'suggested'};
  if (value.startsWith('category:')) return {kind: 'category', name: value.slice('category:'.length)};
  return {kind: 'all'};
 }
 const RECENT_WINDOW = 7 * 86400000;
+/** 建议更新的门槛：上次更新时间已过去 30 天。 */
+const SUGGEST_UPDATE_WINDOW = 30 * 86400000;
+/** 定义了更新操作、且 app.toml 记录的更新时间（旧应用回退到内容目录修改时间）超过一个月。 */
+export function suggestsUpdate(app: App, now = Date.now()): boolean {
+ if (!(app.updater || []).length) return false;
+ const updated = timestamp(app.lastUpdateAt) || timestamp(app.modified);
+ return updated > 0 && now - updated >= SUGGEST_UPDATE_WINDOW;
+}
 export function filterLibrary(apps: App[], filter: LibraryFilter, query: string, mode: SortMode, now = Date.now()): App[] {
  const scoped = apps.filter(app => {
   switch (filter.kind) {
    case 'recent': {const time = timestamp(app.lastUsed);return time > 0 && now - time <= RECENT_WINDOW;}
-   case 'updatable': return (app.updater || []).length > 0;
+   case 'suggested': return suggestsUpdate(app, now);
    case 'category': return categoryOf(app) === filter.name;
    default: return true;
   }

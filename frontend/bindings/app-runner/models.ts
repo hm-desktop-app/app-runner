@@ -5,4 +5,5 @@ export interface Settings {
     "hotkey": string;
     "hotkeyError": string;
     "library": string;
+    "autoStart": boolean;
 }

@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/bodgit/sevenzip"
 	"golang.org/x/text/encoding/simplifiedchinese"
@@ -137,9 +138,17 @@ func (s *Store) Update(id, packagePath string, report func(UpdateProgress)) (Upd
 			return result, fmt.Errorf("更新失败：%w。更新前的文件已保存在 %s", err, backup)
 		}
 	}
+	// 在 app.toml 记录本次更新时间：建议更新只看这个字段，不再依赖
+	// 文件系统的目录时间；没有该字段的旧应用回退到目录修改时间。
+	now := time.Now()
+	stamp := now.Format(time.RFC3339)
+	if err = setProfileValue(filepath.Join(a.Directory, "app.toml"), "last_update_at", stamp); err != nil {
+		return result, fmt.Errorf("更新已完成，但无法记录更新时间：%w", err)
+	}
+	a.LastUpdateAt = stamp
 	if info, e := os.Stat(content); e == nil {
-		now := info.ModTime()
-		a.Modified = &now
+		modified := info.ModTime()
+		a.Modified = &modified
 	}
 	refreshMetadata(&a)
 	s.apps[id] = a

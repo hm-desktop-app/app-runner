@@ -4,7 +4,7 @@ import type {App, Profile, NewAppInfo, Link} from './state';
 import {$ , escape, icons, tile, statusName} from './ui';
 
 export type Theme = 'light' | 'dark';
-export interface SettingsInfo {hotkey: string; hotkeyError: string; library: string}
+export interface SettingsInfo {hotkey: string; hotkeyError: string; library: string; autoStart: boolean}
 export interface SheetContext {
  apps(): App[];
  categories(): string[];
@@ -88,7 +88,7 @@ function renderEdit(ctx: SheetContext): void {
  const app = current(ctx);if (!app || !draft) return;
  head('编辑应用', app.title);
  const status = statusName(statusOf(app));
- const body = '<div class="sheet-app">' + tile(app) + '<div><strong>' + escape(app.title) + '</strong><span>' + escape(categoryOf(app) || '未分类') + ' · ' + escape(app.type === 'GUI' ? '图形应用' : app.type === 'CLI' ? '命令行应用' : '待配置') + '</span></div><span class="chip ' + status.tone + '">' + status.label + '</span></div>'
+ const body = '<div class="sheet-app">' + tile(app) + '<div><strong>' + escape(app.title) + '</strong><span>' + escape(categoryOf(app) || '未分类') + ' · ' + escape(app.type === 'GUI' ? '图形应用' : app.type === 'CLI' ? '命令行应用' : '待配置') + (app.version ? ' · ' + escape(app.version) : '') + '</span></div><span class="chip ' + status.tone + '">' + status.label + '</span></div>'
   + '<div class="tabs" role="tablist">'
   + '<button type="button" class="tab' + (tab === 'basic' ? ' active' : '') + '" data-tab="basic" role="tab" aria-selected="' + (tab === 'basic') + '">基本信息</button>'
   + '<button type="button" class="tab' + (tab === 'links' ? ' active' : '') + '" data-tab="links" role="tab" aria-selected="' + (tab === 'links') + '">相关链接</button>'
@@ -355,7 +355,7 @@ async function prepare(ctx: SheetContext): Promise<void> {
   if (pendingNew) await API.DiscardNewApp(pendingNew.token);
   pendingNew = prepared;
   const name = prepared.name || createName.trim();
-  draft = {uuid: prepared.token, title: name, type: 'GUI', entry: (prepared.entries || [])[0] || '', category: '', description: '', runAsAdmin: false, relatedLinks: [], updater: []};
+  draft = {uuid: prepared.token, title: name, type: 'GUI', entry: (prepared.entries || [])[0] || '', category: '', description: '', runAsAdmin: false, relatedLinks: [], updater: [], lastUpdateAt: ''};
   newEntryValid = false;createStep = 2;
   ctx.busy(false);renderCreate(ctx);
  } catch (error) {
@@ -391,13 +391,23 @@ function renderSettings(ctx: SheetContext): void {
  $('#sheet-body').innerHTML = '<div class="setting-row"><div class="setting-copy"><b>全局热键</b><span>窗口隐藏后，随时唤回命令中心</span></div><span class="hotkey-pill" id="hotkey-pill">' + escape(hotkey.split('+').join(' ')) + '</span></div>'
   + '<div class="setting-row"><div class="setting-copy"><b>关闭时隐藏到托盘</b><span>关闭按钮只收起窗口，右键托盘图标可退出</span></div><span class="chip ok">始终启用</span></div>'
   + '<div class="setting-row"><div class="setting-copy"><b>运行后隐藏窗口</b><span>启动应用后自动收起，按热键再次唤起</span></div><button type="button" class="switch' + (ctx.autohide() ? ' on' : '') + '" id="toggle-autohide" role="switch" aria-checked="' + ctx.autohide() + '" aria-label="运行后隐藏窗口"></button></div>'
-  + '<div class="setting-row"><div class="setting-copy"><b>深色主题</b><span>切换界面配色，立即生效</span></div><button type="button" class="switch' + (ctx.theme() === 'dark' ? ' on' : '') + '" id="toggle-theme" role="switch" aria-checked="' + (ctx.theme() === 'dark') + '" aria-label="深色主题"></button></div>'
+  + '<div class="setting-row"><div class="setting-copy"><b>开机自启</b><span>登录后在托盘常驻，热键随时可用</span></div><button type="button" class="switch' + (info?.autoStart ? ' on' : '') + '" id="toggle-autostart" role="switch" aria-checked="' + !!info?.autoStart + '" aria-label="开机自启"></button></div>'
+ + '<div class="setting-row"><div class="setting-copy"><b>深色主题</b><span>切换界面配色，立即生效</span></div><button type="button" class="switch' + (ctx.theme() === 'dark' ? ' on' : '') + '" id="toggle-theme" role="switch" aria-checked="' + (ctx.theme() === 'dark') + '" aria-label="深色主题"></button></div>'
   + '<div class="setting-row"><div class="setting-copy"><b>应用库</b><span class="mono">' + escape(ctx.library() || info?.library || '未知') + '</span></div><button type="button" class="btn small" id="settings-open-library">打开目录</button></div>'
   + warning
   + '<div class="setting-row"><div class="setting-copy"><b>退出 App Runner</b><span>退出后热键与托盘图标都会消失</span></div><button type="button" class="btn small danger" id="settings-quit">退出</button></div>';
   $('#sheet-foot').innerHTML = '<span class="sheet-state">设置会立即生效</span><div class="sheet-actions"><button type="button" class="btn primary" id="settings-done">完成</button></div>';
   $('#toggle-autohide').onclick = () => {ctx.setAutohide(!ctx.autohide());renderSettings(ctx);};
-  $('#toggle-theme').onclick = () => {ctx.setTheme(ctx.theme() === 'dark' ? 'light' : 'dark');renderSettings(ctx);};
+  $('#toggle-autostart').onclick = async () => {
+  if (!info) return;
+  try {
+   await API.SetAutoStart(!info.autoStart);
+   info.autoStart = !info.autoStart;
+   ctx.toast(info.autoStart ? '已开启开机自启' : '已关闭开机自启');
+   renderSettings(ctx);
+  } catch (error) {ctx.toast(String(error instanceof Error ? error.message : error));}
+ };
+ $('#toggle-theme').onclick = () => {ctx.setTheme(ctx.theme() === 'dark' ? 'light' : 'dark');renderSettings(ctx);};
   $('#settings-open-library').onclick = () => void API.OpenLibrary().catch(error => ctx.toast(String(error instanceof Error ? error.message : error)));
   $('#settings-quit').onclick = async () => {
    if (!await API.Confirm('确定退出 App Runner 吗？退出后需要重新启动程序。')) return;

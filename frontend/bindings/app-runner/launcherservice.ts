@@ -89,6 +89,13 @@ export function Scan(): $CancellablePromise<launcher$0.Snapshot> {
     return $Call.ByID(1395165972);
 }
 
+/**
+ * SetAutoStart 开关登录时自动启动（写入当前用户的 Run 项）。
+ */
+export function SetAutoStart(enabled: boolean): $CancellablePromise<void> {
+    return $Call.ByID(2137320176, enabled);
+}
+
 export function SetCategory(id: string, category: string): $CancellablePromise<launcher$0.App> {
     return $Call.ByID(3202407939, id, category);
 }

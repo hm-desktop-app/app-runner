@@ -36,6 +36,28 @@ func read(t *testing.T, path string) string {
 	}
 	return string(raw)
 }
+func TestSetProfileValueKeepsDocument(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "app.toml")
+	write(t, path, "# 顶行注释\ntitle = 'App'\n\n[[related_links]]\ntitle = '官网'\nurl = 'https://example.com'\n")
+	if err := setProfileValue(path, "last_update_at", "2026-11-17T10:00:00+08:00"); err != nil {
+		t.Fatal(err)
+	}
+	first := read(t, path)
+	if !strings.Contains(first, "# 顶行注释") || !strings.Contains(first, "[[related_links]]") {
+		t.Fatalf("setProfileValue broke the document: %s", first)
+	}
+	if strings.Count(first, "last_update_at") != 1 {
+		t.Fatalf("setProfileValue inserted a duplicate key: %s", first)
+	}
+	if err := setProfileValue(path, "last_update_at", "2026-11-18T10:00:00+08:00"); err != nil {
+		t.Fatal(err)
+	}
+	second := read(t, path)
+	if strings.Count(second, "last_update_at") != 1 || !strings.Contains(second, "2026-11-18") {
+		t.Fatalf("setProfileValue did not replace the value in place: %s", second)
+	}
+}
+
 func scan(t *testing.T, s *Store) Snapshot {
 	t.Helper()
 	data, err := s.Scan()
