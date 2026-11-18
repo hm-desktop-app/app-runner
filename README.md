@@ -131,7 +131,7 @@ npm --prefix frontend run check
 wails3 build
 ```
 
-Go 测试覆盖扫描容错、暂存回收、UUID、只读配置、保存、最近使用、入口、更新时间、备份、PIN 边界、ZIP / 7z 和失败保留；前端测试覆盖筛选排序、关键字与拼音搜索、时间边界、草稿隔离与更新参数校验。前端代码由 ESLint（JavaScript、TypeScript 与 Vue 规则）和 Prettier 统一检查，配置位于 `frontend/eslint.config.js` 与 `frontend/.prettierrc.json`。
+Go 测试覆盖扫描容错、暂存回收、UUID、只读配置、保存、最近使用、入口、更新时间、备份、PIN 边界、ZIP / 7z 和失败保留；前端测试覆盖筛选排序、关键字与拼音搜索、时间边界、草稿隔离与更新参数校验。前端代码由 ESLint（JavaScript、TypeScript 与 Vue 规则）和 Prettier 统一检查，配置位于 `frontend/eslint.config.js` 与 `frontend/.prettierrc.json`；`npm run check` 使用 `vue-tsc` 检查脚本与模板表达式的类型。
 
 无界面扫描：
 
