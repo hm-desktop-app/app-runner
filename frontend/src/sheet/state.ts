@@ -363,6 +363,23 @@ export async function chooseCategory(value: string): Promise<void> {
     state.draft.category = name || previous;
 }
 
+/** 分类下拉：选中"新建分类"时先创建分类，再把下拉回显为实际分类。 */
+export function draftCategoryChanged(event: Event): void {
+    const select = event.target as HTMLSelectElement;
+    if (!state.draft) return;
+    if (select.value !== newCategoryOption) {
+        state.draft.category = select.value;
+        return;
+    }
+    void chooseCategory(select.value).then(() => {
+        select.value = state.draft?.category || '';
+    });
+}
+
+export function draftTypeChanged(event: Event): void {
+    if (state.draft) state.draft.type = (event.target as HTMLSelectElement).value;
+}
+
 export function addLink(): void {
     if (!state.draft) return;
     state.draft.relatedLinks.push({ title: '', url: '' });

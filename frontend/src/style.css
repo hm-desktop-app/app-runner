@@ -440,6 +440,73 @@ dialog select:disabled {
     font-size: 11.5px;
 }
 
+/* sheet form */
+.field {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    margin-bottom: 11px;
+}
+.field label {
+    font-size: 10.5px;
+    color: var(--muted);
+}
+.field input,
+.field select,
+.field textarea {
+    width: 100%;
+    border: 1px solid var(--line-strong);
+    background: var(--surface);
+    border-radius: 7px;
+    padding: 7px 10px;
+    outline: 0;
+    font-size: 12px;
+    transition: 0.14s;
+}
+.field input,
+.field select {
+    height: 33px;
+}
+.field textarea {
+    min-height: 70px;
+    resize: vertical;
+    line-height: 1.6;
+}
+.field input:focus,
+.field select:focus,
+.field textarea:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px var(--accent-soft);
+}
+.field small {
+    font-size: 10px;
+    color: var(--faint);
+    line-height: 1.5;
+}
+.field input.invalid {
+    border-color: var(--red-line);
+    box-shadow: 0 0 0 3px var(--red-soft);
+}
+.check {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 11px;
+    color: var(--muted);
+    margin: 4px 0 12px;
+}
+.check input {
+    width: 15px;
+    height: 15px;
+    accent-color: var(--accent);
+}
+.sheet-error {
+    margin: 8px 0 0;
+    font-size: 10.5px;
+    line-height: 1.6;
+    color: var(--red);
+}
+
 /* toast + activity */
 .toast {
     position: fixed;
