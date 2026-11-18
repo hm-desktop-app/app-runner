@@ -1,10 +1,10 @@
 {
 	"fixed": {
-		"file_version": "2026.11.17.3"
+		"file_version": "2026.11.18.1"
 	},
 	"info": {
 		"0000": {
-			"ProductVersion": "2026.11.17-3",
+			"ProductVersion": "2026.11.18-1",
 			"CompanyName": "App Runner",
 			"FileDescription": "本地应用管理与启动器",
 			"LegalCopyright": "App Runner",
